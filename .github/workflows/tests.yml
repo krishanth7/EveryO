@@ -11,6 +11,12 @@ on:
 permissions:
   contents: read
 
+# CI runners do not provide an interactive desktop. Force Matplotlib's
+# non-interactive backend so chart tests exercise rendering and file output
+# without depending on Tk/Tcl packages supplied by a runner image.
+env:
+  MPLBACKEND: Agg
+
 concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
