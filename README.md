@@ -38,7 +38,7 @@ aims at the space between:
   the way it is.
 * **Actually correct.** Every gradient is verified against finite differences,
   and operations are compared against NumPy and (when installed) TensorFlow.
-  433 tests run in well under a minute on CPU (8 of them skip without a GPU).
+  436 tests run in well under a minute on CPU (8 of them skip without a GPU).
 * **Honest about limits.** Nothing here is a placeholder. Features are marked
   Available, Experimental or Planned, and benchmark numbers come from runs on
   your own machine, never from this README.
@@ -439,7 +439,7 @@ EveryO/
 │   ├── cuda/            availability detection and kernel interface
 │   └── cli/             the everyo command
 ├── cuda/                .cu kernels, header, pybind11 bindings, CMakeLists
-├── tests/               433 tests
+├── tests/               436 tests
 ├── examples/            runnable scripts
 ├── benchmarks/          measurement scripts
 ├── scripts/             setup, test, lint, benchmark, build_cuda, clean

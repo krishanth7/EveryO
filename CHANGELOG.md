@@ -32,6 +32,11 @@ All notable changes to EveryO are recorded here. The format follows
   `reduction="sum"` the batch total was weighted by the batch size a second
   time, inflating the recorded loss and making it depend on batching — which
   also affected validation, early stopping and checkpoint selection.
+- **Early stopping now says when it restores the best weights.** The restore
+  was logged at INFO, which is invisible by default, so metrics measured after
+  `fit()` looked inconsistent with the last epoch printed — they describe the
+  restored model. `EarlyStopping` prints one explanatory line when it stops;
+  pass `verbose=False` to silence it.
 - **Charts are drawn even when the active matplotlib backend cannot draw.**
   Every chart is now created through a helper that retries on Agg per call. A
   once-per-process check was not enough: an interactive backend that imports
