@@ -122,6 +122,27 @@ history = trainer.fit(
 print(trainer.evaluate(eo.DataLoader(eo.ArrayDataset(x_test, y_test), batch_size=64)))
 ```
 
+## A convolutional network
+
+Images are `NHWC` — `(batch, height, width, channels)` — so a single-channel
+8x8 image batch has shape `(n, 8, 8, 1)`:
+
+```python
+model = eo.Sequential(
+    eo.Conv2D(1, 8, 3, padding="same"),
+    eo.ReLU(),
+    eo.MaxPool2D(2),
+    eo.Conv2D(8, 16, 3, padding="same"),
+    eo.ReLU(),
+    eo.MaxPool2D(2),
+    eo.Flatten(),
+    eo.Linear(2 * 2 * 16, 10),
+)
+```
+
+`padding` accepts `"valid"`, `"same"` or an int, and `stride` accepts an int or
+a `(height, width)` pair. See `examples/convolutional_network.py`.
+
 ## Charts, saving and loading
 
 ```python

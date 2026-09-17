@@ -99,6 +99,32 @@ And the thing a linear model simply cannot do — a curved decision boundary, le
 <img src="docs/assets/decision-boundary.png" alt="Linear model at 88.5% versus EveryO MLP at 99.7% on two moons" width="100%">
 </div>
 
+### Convolution, and what it learns
+
+A CNN built from `Conv2D` and `MaxPool2D` reaches **99.2% with 1,898 parameters** — beating a dense
+network of comparable size (98.5% with 2,410), because convolution shares its weights across the image.
+Below: one digit, the eight feature maps the first layer produces, and the 3×3 kernels that produced them.
+
+<div align="center">
+<img src="docs/assets/conv-features.png" alt="Learned convolution filters and their feature maps" width="100%">
+</div>
+
+```python
+model = eo.Sequential(
+    eo.Conv2D(1, 8, 3, padding="same"),
+    eo.ReLU(),
+    eo.MaxPool2D(2),
+    eo.Conv2D(8, 16, 3, padding="same"),
+    eo.ReLU(),
+    eo.MaxPool2D(2),
+    eo.Flatten(),
+    eo.Linear(2 * 2 * 16, 10),
+)
+```
+
+Tensors are `NHWC`, the same layout TensorFlow uses — so the forward pass is compared against
+`tf.nn.conv2d` **bit for bit** in the test suite, and every gradient against finite differences.
+
 ---
 
 ## 🎯 What it actually does
@@ -107,7 +133,7 @@ And the thing a linear model simply cannot do — a curved decision boundary, le
 |---|---|
 | **Tensors** | dtypes, devices, broadcasting, indexing, reductions, NumPy interop |
 | **Autograd** | reverse-mode gradients for 25+ ops, iterative graph walk, `no_grad`, finite-difference verified |
-| **Layers** | `Linear`, `Flatten`, `Dropout`, `Sequential` + a `Module` base you can subclass |
+| **Layers** | `Linear`, `Conv2D`, `MaxPool2D`, `AvgPool2D`, `Flatten`, `Dropout`, `Sequential` + a `Module` base you can subclass |
 | **Activations** | ReLU, sigmoid, tanh, softmax, log-softmax — as functions *and* modules |
 | **Losses** | MSE, MAE, BCE, BCE-with-logits (numerically stable), cross-entropy |
 | **Optimizers** | SGD, momentum, Nesterov, weight decay, Adam, AMSGrad |
@@ -122,7 +148,7 @@ And the thing a linear model simply cannot do — a curved decision boundary, le
 > **Experimental** — CUDA dispatch for tensors on a `cuda` device: kernels are correct and checked against NumPy,
 > but each call still copies to the device and back, so measure before relying on it.
 >
-> **Planned** — convolutions, normalization layers, attention, GPU-resident tensors, mixed precision, ONNX.
+> **Planned** — normalization layers, attention, GPU-resident tensors, mixed precision, ONNX.
 > These are *not* implemented; see the [roadmap](#-roadmap).
 
 ---
@@ -134,17 +160,19 @@ Anyone can write something that *looks* like a framework. Here is why you can tr
 ```
 gradients      vs finite differences ..... every differentiable op, in float64
 matmul         vs TensorFlow ............. 0.000e+00
+conv2d         vs TensorFlow ............. 0.000e+00   (valid/same, strided, rectangular)
+max/avg pool   vs TensorFlow ............. 0.000e+00
 relu           vs TensorFlow ............. 0.000e+00
 softmax        vs TensorFlow ............. 2.980e-08
 cross-entropy  vs TensorFlow ............. exact to 6 decimal places
 its GRADIENT   vs TensorFlow ............. 3.725e-09
 ```
 
-**436 tests** run in under 10 seconds on CPU. CUDA tests skip themselves without a GPU;
+**506 tests** run in under 10 seconds on CPU. CUDA tests skip themselves without a GPU;
 TensorFlow tests skip themselves without TensorFlow. The core suite needs no network, no GPU, and no credentials.
 
 ```bash
-pytest                    # 428 passed, 8 skipped
+pytest                    # 498 passed, 8 skipped
 ./scripts/lint.sh         # ruff check + format check
 ```
 
@@ -214,7 +242,7 @@ EveryO is a readable reference implementation — when a tuned runtime beats it,
 
 Not implemented yet — contributions very welcome on any of these:
 
-- [ ] Convolution and pooling layers
+- [x] ~~Convolution and pooling layers~~ — **shipped**: `Conv2D`, `MaxPool2D`, `AvgPool2D`
 - [ ] Batch / layer normalization
 - [ ] Recurrent layers, attention, transformer blocks
 - [ ] GPU-resident tensors (removing per-call transfers)
@@ -261,7 +289,7 @@ Sponsorship is configured in [`.github/FUNDING.yml`](.github/FUNDING.yml).
 | [Autograd](docs/autograd.md) | how the gradient engine works and how it is verified |
 | [CUDA](docs/cuda.md) | building, using and benchmarking the kernels |
 | [API reference](docs/api-reference.md) | the full public surface |
-| [Examples](examples/) | eight runnable scripts |
+| [Examples](examples/) | nine runnable scripts |
 
 ---
 

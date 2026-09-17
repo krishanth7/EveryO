@@ -19,6 +19,7 @@ from everyo import backends, cuda, datasets, visualization
 from everyo._logging import configure_logging, get_logger
 from everyo.config import Config, DeviceConfig, ModelConfig, TrainingConfig, load_config
 from everyo.core.autograd import enable_grad, no_grad, set_grad_enabled
+from everyo.core.convolution import avg_pool2d, conv2d, max_pool2d
 from everyo.core.device import Device, device
 from everyo.core.dtype import DTYPES, dtype_name
 from everyo.core.operations import (
@@ -92,8 +93,10 @@ from everyo.exceptions import (
     EveryOShapeError,
 )
 from everyo.nn import (
+    AvgPool2D,
     BCELoss,
     BCEWithLogitsLoss,
+    Conv2D,
     CrossEntropyLoss,
     Dropout,
     Flatten,
@@ -101,6 +104,7 @@ from everyo.nn import (
     LogSoftmax,
     Loss,
     MAELoss,
+    MaxPool2D,
     Module,
     MSELoss,
     Parameter,
@@ -157,6 +161,9 @@ __all__ = [
     "tensor",
     # operations
     "abs",
+    "avg_pool2d",
+    "conv2d",
+    "max_pool2d",
     "add",
     "arange",
     "clip",
@@ -198,8 +205,10 @@ __all__ = [
     "zeros",
     "zeros_like",
     # neural networks
+    "AvgPool2D",
     "BCELoss",
     "BCEWithLogitsLoss",
+    "Conv2D",
     "CrossEntropyLoss",
     "Dropout",
     "Flatten",
@@ -208,6 +217,7 @@ __all__ = [
     "Loss",
     "MAELoss",
     "MSELoss",
+    "MaxPool2D",
     "Module",
     "Parameter",
     "ReLU",

@@ -38,6 +38,12 @@ The foundation.
   on a CUDA device and a kernel exists) and records a graph node.
 * `autograd.py` — the reverse-mode engine: graph nodes, an iterative
   topological sort, gradient accumulation and the `no_grad` mode flag.
+* `convolution.py` — convolution and pooling. These live apart from
+  `operations.py` because they need windowing helpers nothing else uses, and
+  because the file would otherwise dwarf every other module. The forward pass
+  is im2col, which turns a convolution into a single matrix multiplication;
+  the backward pass is two more multiplications plus a scatter-add back into
+  the padded image.
 
 ### `everyo.backends`
 
@@ -90,6 +96,11 @@ a registry, so opening an untrusted file cannot execute code.
 not where data lives. Transfers happen inside each kernel call. This costs
 bandwidth, and the benchmarks measure that cost honestly; in exchange the data
 model stays simple enough to read.
+
+**Images are `NHWC`.** `(batch, height, width, channels)` is TensorFlow's
+native layout, and EveryO uses TensorFlow as its correctness reference — so
+convolution results can be compared against `tf.nn.conv2d` without transposing
+anything, which is exactly what the test suite does.
 
 **`float32` by default.** Python lists and scalars become `float32`; a NumPy
 array keeps its own precision, so `float64` work stays `float64`. Gradient

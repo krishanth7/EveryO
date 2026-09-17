@@ -38,6 +38,13 @@ Shape: `reshape`, `transpose`, `flatten`, `concatenate`, `stack`.
 
 Activations: `relu`, `sigmoid`, `tanh`, `softmax`, `log_softmax`.
 
+Convolution: `conv2d(x, weight, bias, *, stride, padding)`,
+`max_pool2d(x, pool_size, *, stride, padding)`,
+`avg_pool2d(x, pool_size, *, stride, padding)`. Images are `NHWC`
+(`batch, height, width, channels`) and kernels are
+`(kernel_h, kernel_w, in_channels, out_channels)` — TensorFlow's layout.
+`padding` is `"valid"`, `"same"` or an int.
+
 ## Gradient mode
 
 `eo.no_grad()`, `eo.enable_grad()`, `eo.set_grad_enabled(mode)` — all usable as
@@ -51,6 +58,9 @@ context managers or decorators.
 | `eo.Parameter` | A tensor an optimizer updates |
 | `eo.Sequential(*layers)` | Chain layers |
 | `eo.Linear(in_features, out_features, *, bias, initializer, seed)` | Affine layer |
+| `eo.Conv2D(in_channels, out_channels, kernel_size, *, stride, padding, bias, initializer, seed)` | 2-D convolution over `NHWC` images |
+| `eo.MaxPool2D(pool_size, *, stride, padding)` | Max pooling |
+| `eo.AvgPool2D(pool_size, *, stride, padding)` | Average pooling |
 | `eo.Flatten(start_dim=1)` | Collapse trailing dimensions |
 | `eo.Dropout(p, *, seed)` | Inverted dropout |
 | `eo.ReLU`, `eo.Sigmoid`, `eo.Tanh`, `eo.Softmax`, `eo.LogSoftmax` | Activation modules |

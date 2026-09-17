@@ -20,7 +20,7 @@ from everyo.nn.initialization import (
     xavier_normal,
     xavier_uniform,
 )
-from everyo.nn.layers import Dropout, Flatten, Linear
+from everyo.nn.layers import AvgPool2D, Conv2D, Dropout, Flatten, Linear, MaxPool2D
 from everyo.nn.losses import (
     BCELoss,
     BCEWithLogitsLoss,
@@ -37,8 +37,10 @@ from everyo.nn.module import MODULE_REGISTRY, Module, Parameter, register_module
 from everyo.nn.sequential import Sequential
 
 __all__ = [
+    "AvgPool2D",
     "BCELoss",
     "BCEWithLogitsLoss",
+    "Conv2D",
     "CrossEntropyLoss",
     "Dropout",
     "Flatten",
@@ -47,6 +49,7 @@ __all__ = [
     "LogSoftmax",
     "MAELoss",
     "MODULE_REGISTRY",
+    "MaxPool2D",
     "MSELoss",
     "Module",
     "Parameter",
