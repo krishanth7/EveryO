@@ -8,7 +8,7 @@ from typing import Any, Sequence
 import numpy as np
 
 from everyo.exceptions import EveryOError
-from everyo.visualization._backend import get_pyplot
+from everyo.visualization._backend import create_figure
 from everyo.visualization.training import _finish
 
 __all__ = ["plot_benchmark", "plot_benchmark_bars"]
@@ -43,11 +43,10 @@ def plot_benchmark(
         y_key: Row key used for the y axis.
         log_scale: Use logarithmic axes, which suits timing data.
     """
-    plt = get_pyplot()
     if not results:
         raise EveryOError("plot_benchmark() received an empty result list.")
 
-    figure, axes = plt.subplots(figsize=figsize)
+    figure, axes = create_figure(lambda plt: plt.subplots(figsize=figsize))
     for backend, rows in _grouped(results).items():
         ordered = sorted(rows, key=lambda row: row[x_key])
         axes.plot(
@@ -77,14 +76,13 @@ def plot_benchmark_bars(
     figsize: tuple[float, float] = (7.0, 4.5),
 ) -> Any:
     """Draw a bar chart comparing one measurement per backend."""
-    plt = get_pyplot()
     if not results:
         raise EveryOError("plot_benchmark_bars() received an empty result list.")
 
     labels = [str(row[label_key]) for row in results]
     values = [float(row[value_key]) for row in results]
 
-    figure, axes = plt.subplots(figsize=figsize)
+    figure, axes = create_figure(lambda plt: plt.subplots(figsize=figsize))
     positions = np.arange(len(labels))
     bars = axes.bar(positions, values, color="steelblue")
     axes.set_xticks(positions, labels, rotation=20, ha="right")

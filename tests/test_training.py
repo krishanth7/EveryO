@@ -134,6 +134,43 @@ class TestEvaluateAndPredict:
             build_trainer().evaluate(loader)
 
 
+class TestLossAccumulation:
+    """The recorded epoch loss must not depend on the batch size."""
+
+    @staticmethod
+    def _recorded_loss(reduction, batch_size):
+        rng = np.random.default_rng(0)
+        features = rng.normal(size=(12, 3)).astype(np.float32)
+        targets = features.sum(axis=1, keepdims=True)
+        model = eo.Sequential(eo.Linear(3, 1, seed=0))
+        # A learning rate of effectively zero keeps the model fixed, so any
+        # difference between runs comes from the accounting, not from training.
+        trainer = eo.Trainer(
+            model, eo.SGD(model.parameters(), lr=1e-12), eo.MSELoss(reduction=reduction)
+        )
+        loader = eo.DataLoader(eo.ArrayDataset(features, targets), batch_size=batch_size)
+        history = trainer.fit(loader, epochs=1, verbose=False)
+        return history["loss"][0], trainer.evaluate(loader)["loss"]
+
+    @pytest.mark.parametrize("reduction", ["mean", "sum"])
+    def test_loss_is_independent_of_batch_size(self, reduction):
+        full, _ = self._recorded_loss(reduction, 12)
+        for batch_size in (6, 5, 1):
+            batched, _ = self._recorded_loss(reduction, batch_size)
+            assert batched == pytest.approx(full, rel=1e-5)
+
+    def test_sum_and_mean_reductions_record_the_same_per_sample_loss(self):
+        mean_loss, mean_eval = self._recorded_loss("mean", 5)
+        sum_loss, sum_eval = self._recorded_loss("sum", 5)
+        assert sum_loss == pytest.approx(mean_loss, rel=1e-5)
+        assert sum_eval == pytest.approx(mean_eval, rel=1e-5)
+
+    def test_evaluate_agrees_with_fit(self):
+        for reduction in ("mean", "sum"):
+            recorded, evaluated = self._recorded_loss(reduction, 5)
+            assert recorded == pytest.approx(evaluated, rel=1e-5)
+
+
 class TestHistory:
     def test_metric_series(self):
         history = eo.History()

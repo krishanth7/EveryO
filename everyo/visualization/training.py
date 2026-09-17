@@ -7,7 +7,7 @@ from typing import Any, Sequence
 
 from everyo.exceptions import EveryOError
 from everyo.training.history import History
-from everyo.visualization._backend import get_pyplot
+from everyo.visualization._backend import create_figure, get_pyplot
 
 __all__ = ["plot_loss", "plot_accuracy", "plot_history", "plot_metric"]
 
@@ -63,7 +63,6 @@ def plot_metric(
     Raises:
         EveryOError: If none of ``keys`` is present in the history.
     """
-    plt = get_pyplot()
     series = _as_history(history)
     present = [key for key in keys if key in series and series[key]]
     if not present:
@@ -72,7 +71,7 @@ def plot_metric(
             f"Recorded metrics: {', '.join(sorted(series)) or 'none'}."
         )
 
-    figure, axes = plt.subplots(figsize=figsize)
+    figure, axes = create_figure(lambda plt: plt.subplots(figsize=figsize))
     for key in present:
         values = series[key]
         axes.plot(range(1, len(values) + 1), values, marker="o", markersize=3, label=key)
@@ -140,13 +139,12 @@ def plot_history(
     figsize: tuple[float, float] = (11.0, 4.5),
 ) -> Any:
     """Draw loss and accuracy side by side when both are available."""
-    plt = get_pyplot()
     series = _as_history(history)
     has_accuracy = any(key in series for key in ("accuracy", "val_accuracy", "binary_accuracy"))
     if not has_accuracy:
         return plot_loss(history, save_path=save_path, show=show)
 
-    figure, (left, right) = plt.subplots(1, 2, figsize=figsize)
+    figure, (left, right) = create_figure(lambda plt: plt.subplots(1, 2, figsize=figsize))
     for key in ("loss", "val_loss"):
         if key in series:
             left.plot(

@@ -223,20 +223,25 @@ class Tensor:
         return self._data.reshape(-1)[0].item()
 
     def astype(self, dtype: Any) -> Tensor:
-        """Return a copy of this tensor cast to ``dtype`` (not differentiable)."""
-        return Tensor(
-            self._data.astype(resolve_dtype(dtype)),
-            dtype=dtype,
-            device=self._device,
-        )
+        """Return this tensor cast to ``dtype``.
+
+        A cast between floating point dtypes keeps the autograd graph intact;
+        a cast to an integer or boolean dtype detaches, because such a tensor
+        cannot carry gradients.
+        """
+        from everyo.core import operations as ops
+
+        return ops.to(self, dtype=dtype)
 
     def to(self, device: DeviceLike = None, *, dtype: Any | None = None) -> Tensor:
-        """Return a tensor placed on ``device`` and/or cast to ``dtype``."""
-        target = self._device if device is None else resolve_device(device)
-        data = self._data if dtype is None else self._data.astype(resolve_dtype(dtype))
-        out = Tensor(data, device=target)
-        out._requires_grad = self._requires_grad
-        return out
+        """Return a tensor placed on ``device`` and/or cast to ``dtype``.
+
+        The move is differentiable: gradients flow back to the source tensor,
+        so ``(x * 2).to("cpu").sum().backward()`` still fills in ``x.grad``.
+        """
+        from everyo.core import operations as ops
+
+        return ops.to(self, device=device, dtype=dtype)
 
     def cpu(self) -> Tensor:
         """Return this tensor placed on the CPU device."""
