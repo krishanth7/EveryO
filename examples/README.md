@@ -17,6 +17,7 @@ python examples/tensor_basics.py
 | `multiclass_classification.py` | Three-class spirals with early stopping |
 | `neural_network.py` | The full pipeline on the bundled digit dataset |
 | `convolutional_network.py` | A CNN vs a dense baseline, plus the learned filters |
+| `sequence_models.py` | RNN/LSTM/GRU vs a transformer on long-range recall |
 | `save_and_load.py` | Saving, inspecting and reloading an `.evo` archive |
 | `tensorflow_backend.py` | Cross-checking EveryO against TensorFlow (optional) |
 | `cuda_example.py` | CUDA detection, correctness check and CPU fallback |

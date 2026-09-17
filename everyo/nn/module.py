@@ -89,11 +89,46 @@ class Module:
             self._ensure_initialised()
             self._modules[key] = value
             self._parameters.pop(key, None)
+        elif isinstance(getattr(self, "_buffers", None), dict) and key in self._buffers:
+            # Rebinding a registered buffer keeps it registered: batch
+            # normalisation updates its running statistics this way.
+            self._buffers[key] = np.asarray(value)
+            value = self._buffers[key]
         else:
             if isinstance(getattr(self, "_parameters", None), dict):
                 self._parameters.pop(key, None)
                 self._modules.pop(key, None)
         object.__setattr__(self, key, value)
+
+    def register_buffer(self, name: str, value: Any) -> None:
+        """Register persistent state that is saved but never trained.
+
+        A buffer is part of a model's state — batch normalisation's running
+        mean and variance, for instance — but an optimizer must not update it,
+        so it is deliberately not a :class:`Parameter`. Buffers travel in
+        :meth:`state_dict` and therefore survive a save/load round trip.
+
+        Args:
+            name: Attribute name to bind the buffer to.
+            value: Array-like initial value.
+        """
+        self._ensure_initialised()
+        array = np.asarray(value)
+        self._buffers[name] = array
+        self._parameters.pop(name, None)
+        self._modules.pop(name, None)
+        object.__setattr__(self, name, array)
+
+    def named_buffers(self, prefix: str = "") -> Iterator[tuple[str, np.ndarray]]:
+        """Yield ``(qualified_name, buffer)`` for this module and its children."""
+        for name in self._buffers:
+            yield (f"{prefix}{name}", getattr(self, name))
+        for name, child in self._modules.items():
+            yield from child.named_buffers(prefix=f"{prefix}{name}.")
+
+    def buffers(self) -> list[np.ndarray]:
+        """Return every buffer in this module tree."""
+        return [buffer for _, buffer in self.named_buffers()]
 
     def _ensure_initialised(self) -> None:
         if not hasattr(self, "_parameters"):
@@ -194,10 +229,17 @@ class Module:
         return cls(**config)
 
     def state_dict(self, prefix: str = "") -> OrderedDict[str, np.ndarray]:
-        """Return an ordered mapping of parameter name to NumPy array."""
+        """Return an ordered mapping of parameter *and buffer* name to array.
+
+        Buffers are included because a model that forgot its running statistics
+        would score differently after a reload — a bug that is easy to ship and
+        hard to notice.
+        """
         state: OrderedDict[str, np.ndarray] = OrderedDict()
         for name, parameter in self.named_parameters(prefix=prefix):
             state[name] = parameter.numpy()
+        for name, buffer in self.named_buffers(prefix=prefix):
+            state[name] = np.array(buffer, copy=True)
         return state
 
     def load_state_dict(self, state: dict[str, np.ndarray], *, strict: bool = True) -> None:
@@ -212,8 +254,9 @@ class Module:
                 on a shape mismatch.
         """
         own = dict(self.named_parameters())
-        missing = sorted(set(own) - set(state))
-        unexpected = sorted(set(state) - set(own))
+        own_buffers = dict(self.named_buffers())
+        missing = sorted((set(own) | set(own_buffers)) - set(state))
+        unexpected = sorted(set(state) - set(own) - set(own_buffers))
         if strict and (missing or unexpected):
             raise EveryOSerializationError(
                 "State dict does not match the model. "
@@ -230,6 +273,21 @@ class Module:
                     f"saved value has shape {array.shape}."
                 )
             parameter.data = array.astype(parameter.data.dtype)
+
+        for key, buffer in own_buffers.items():
+            if key not in state:
+                continue
+            array = np.asarray(state[key])
+            if array.shape != np.shape(buffer):
+                raise EveryOSerializationError(
+                    f"Buffer '{key}' expects shape {np.shape(buffer)} but the "
+                    f"saved value has shape {array.shape}."
+                )
+            owner, _, attribute = key.rpartition(".")
+            module = self
+            for step in filter(None, owner.split(".")):
+                module = module._modules[step]
+            setattr(module, attribute, array.astype(np.asarray(buffer).dtype))
 
     # ------------------------------------------------------------------
     # Representation

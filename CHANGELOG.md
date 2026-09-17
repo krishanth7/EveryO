@@ -8,6 +8,28 @@ All notable changes to EveryO are recorded here. The format follows
 
 ### Added
 
+- **Normalization layers**: `BatchNorm1D`, `BatchNorm2D` and `LayerNorm`.
+  Batch normalization keeps running statistics for evaluation mode; layer
+  normalization is batch-independent and behaves identically in both modes.
+- **Recurrent layers**: `RNN`, `LSTM` and `GRU`, plus an `Embedding` lookup.
+  Backpropagation through time is the existing autograd engine walking the
+  graph the time loop built, so there is no separate BPTT implementation.
+  `LSTM` initialises its forget-gate bias to 1 by default — with a zero bias
+  the gate sits at `sigmoid(0) = 0.5`, halving the cell state at every step and
+  destroying the long-range memory the cell path exists to provide. Measured
+  over 40 timesteps, the fix moved the gradient reaching `t=0` from `9.3e-11`
+  to `1.7e-05`.
+- **Attention and transformers**: `scaled_dot_product_attention`,
+  `MultiHeadAttention`, `PositionalEncoding`, `TransformerEncoderBlock` and
+  `TransformerEncoder`, with `causal_mask` and `padding_mask` helpers. Pre-norm
+  by default, as modern large models use.
+- **Module buffers**: `register_buffer`, `named_buffers` and `buffers`. Buffers
+  are state that is saved but never trained — batch normalization's running
+  statistics, a positional encoding table — and they travel in `state_dict` and
+  through `.evo` archives.
+- New sequence datasets (`make_recall_task`, `make_copy_task`,
+  `make_parity_task`) and `examples/sequence_models.py`, comparing recurrent
+  models with a transformer on long-range recall.
 - **Convolution and pooling layers**, the first roadmap item: `Conv2D`,
   `MaxPool2D` and `AvgPool2D`, plus the functional `eo.conv2d`,
   `eo.max_pool2d` and `eo.avg_pool2d`.
