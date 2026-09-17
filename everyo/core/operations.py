@@ -22,7 +22,7 @@ import numpy as np
 from everyo.core import autograd
 from everyo.core.autograd import Node, unbroadcast
 from everyo.core.device import Device, DeviceLike, resolve_device
-from everyo.core.dtype import DEFAULT_FLOAT_DTYPE, resolve_dtype
+from everyo.core.dtype import DEFAULT_FLOAT_DTYPE, is_floating, resolve_dtype
 from everyo.core.tensor import Tensor, as_tensor
 from everyo.exceptions import EveryOShapeError
 
@@ -114,10 +114,11 @@ def _make(
     inputs: Sequence[Tensor],
     operation: str,
     backward_fn: Any,
+    device: Device | None = None,
 ) -> Tensor:
     """Wrap ``data`` in a tensor, attaching a graph node when required."""
     data = np.asarray(data)
-    device = _result_device(inputs)
+    device = _result_device(inputs) if device is None else device
     track = (
         autograd.is_grad_enabled()
         and backward_fn is not None
@@ -487,6 +488,43 @@ def clip(a: Any, low: float, high: float) -> Tensor:
 # ----------------------------------------------------------------------
 # Linear algebra
 # ----------------------------------------------------------------------
+def to(
+    a: Any,
+    device: DeviceLike | None = None,
+    dtype: Any | None = None,
+) -> Tensor:
+    """Place a tensor on ``device`` and/or cast it, keeping the graph intact.
+
+    Moving a tensor is an identity operation on its values, so the gradient
+    flows straight through to the source. A cast to a non-floating dtype cannot
+    carry gradients and therefore detaches, which is reported by the result
+    having ``requires_grad=False`` rather than by a silent dead end.
+
+    Args:
+        a: The tensor to move.
+        device: Target device, or ``None`` to keep the current one.
+        dtype: Target dtype, or ``None`` to keep the current one.
+
+    Returns:
+        A tensor on the requested device with the requested dtype.
+    """
+    value = as_tensor(a)
+    target_device = value.device if device is None else resolve_device(device)
+    target_dtype = None if dtype is None else resolve_dtype(dtype)
+    data = value.data if target_dtype is None else value.data.astype(target_dtype)
+    source_dtype = value.data.dtype
+
+    if target_dtype is not None and not is_floating(target_dtype):
+        # dtype is passed explicitly: without it the Tensor constructor would
+        # re-apply its "integers become float32" default and undo the cast.
+        return Tensor(data, dtype=target_dtype, device=target_device)
+
+    def backward_fn(gradient: np.ndarray):
+        return (np.asarray(gradient).astype(source_dtype),)
+
+    return _make(data, (value,), "to", backward_fn, device=target_device)
+
+
 def matmul(a: Any, b: Any) -> Tensor:
     """Matrix multiplication for 1-D and 2-D tensors (with batched 2-D+ support).
 
@@ -508,26 +546,37 @@ def matmul(a: Any, b: Any) -> Tensor:
     device = _result_device((left, right))
     data = _dispatch("matmul", device, left.data, right.data)
 
-    left_2d = left.ndim >= 2
-    right_2d = right.ndim >= 2
+    left_is_vector = left.ndim == 1
+    right_is_vector = right.ndim == 1
 
     def backward_fn(gradient: np.ndarray):
         grad = np.asarray(gradient)
-        if left_2d and right_2d:
-            grad_left = grad @ np.swapaxes(right.data, -1, -2)
-            grad_right = np.swapaxes(left.data, -1, -2) @ grad
-        elif left_2d and not right_2d:
-            # (m, k) @ (k,) -> (m,)
-            grad_left = np.outer(grad, right.data).reshape(left.shape)
-            grad_right = left.data.T @ grad
-        elif not left_2d and right_2d:
-            # (k,) @ (k, n) -> (n,)
-            grad_left = right.data @ grad
-            grad_right = np.outer(left.data, grad)
-        else:
-            # (k,) @ (k,) -> scalar
-            grad_left = grad * right.data
-            grad_right = grad * left.data
+        # Promote 1-D operands to matrices so one formula covers every rank
+        # combination, including batched operands. NumPy's matmul does the same
+        # promotion in the forward pass, so the shapes always line up.
+        left_matrix = left.data[np.newaxis, :] if left_is_vector else left.data
+        right_matrix = right.data[:, np.newaxis] if right_is_vector else right.data
+
+        grad_matrix = grad
+        if left_is_vector and right_is_vector:
+            grad_matrix = grad.reshape(*grad.shape, 1, 1)
+        elif left_is_vector:
+            # (..., n) -> (..., 1, n)
+            grad_matrix = grad[..., np.newaxis, :]
+        elif right_is_vector:
+            # (..., m) -> (..., m, 1)
+            grad_matrix = grad[..., np.newaxis]
+
+        grad_left = grad_matrix @ np.swapaxes(right_matrix, -1, -2)
+        grad_right = np.swapaxes(left_matrix, -1, -2) @ grad_matrix
+
+        # Drop the axis that promotion added, then let unbroadcast sum away any
+        # batch dimensions the operand did not have.
+        if left_is_vector:
+            grad_left = grad_left[..., 0, :]
+        if right_is_vector:
+            grad_right = grad_right[..., 0]
+
         return (
             unbroadcast(np.asarray(grad_left), left.shape),
             unbroadcast(np.asarray(grad_right), right.shape),
@@ -757,6 +806,38 @@ def relu(a: Any) -> Tensor:
         return (np.asarray(gradient) * positive,)
 
     return _make(data, (value,), "relu", backward_fn)
+
+
+def binary_cross_entropy_with_logits(a: Any, b: Any) -> Tensor:
+    """Binary cross entropy computed from logits, with an exact gradient.
+
+    The forward pass uses the stable form ``max(x, 0) - x*y + log1p(exp(-|x|))``.
+    The backward pass is written out rather than composed from ``relu`` and
+    ``abs``: at ``x == 0`` both of those have a zero subgradient, which would
+    give ``-y`` instead of the true derivative ``sigmoid(x) - y = 0.5 - y``.
+    Logits of exactly zero are common (zero-initialised final layers, zero
+    inputs), so that difference matters.
+    """
+    logits, targets = _binary_inputs(a, b, "binary_cross_entropy_with_logits")
+    x = logits.data
+    y = targets.data
+
+    magnitude = np.abs(x)
+    data = np.maximum(x, 0) - x * y + np.log1p(np.exp(-magnitude))
+    probabilities = np.where(
+        x >= 0,
+        1.0 / (1.0 + np.exp(-magnitude)),
+        np.exp(-magnitude) / (1.0 + np.exp(-magnitude)),
+    ).astype(x.dtype, copy=False)
+
+    def backward_fn(gradient: np.ndarray):
+        grad = np.asarray(gradient)
+        return (
+            unbroadcast(grad * (probabilities - y), logits.shape),
+            unbroadcast(-grad * x, targets.shape),
+        )
+
+    return _make(data, (logits, targets), "binary_cross_entropy_with_logits", backward_fn)
 
 
 def sigmoid(a: Any) -> Tensor:

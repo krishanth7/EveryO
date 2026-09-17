@@ -175,6 +175,103 @@ class TestNumericGradientChecks:
         self._check(lambda t: eo.mean(eo.tanh(eo.matmul(eo.relu(t), eo.tensor(weights))) ** 2))
 
 
+class TestDifferentiableMoves:
+    """Moving or casting a tensor must not silently sever the graph."""
+
+    def test_to_keeps_the_graph(self):
+        x = eo.tensor([2.0], requires_grad=True)
+        eo.sum((x * 2).to("cpu")).backward()
+        np.testing.assert_allclose(x.grad, [2.0])
+
+    def test_cpu_keeps_the_graph(self):
+        x = eo.tensor([3.0], requires_grad=True)
+        eo.sum((x * 2).cpu()).backward()
+        np.testing.assert_allclose(x.grad, [2.0])
+
+    def test_cuda_keeps_the_graph(self):
+        """True whether or not CUDA is present: without it this falls back to CPU."""
+        x = eo.tensor([3.0], requires_grad=True)
+        eo.sum((x * 2).cuda()).backward()
+        np.testing.assert_allclose(x.grad, [2.0])
+
+    def test_float_cast_keeps_the_graph(self):
+        x = eo.tensor([3.0], requires_grad=True)
+        result = (x * 2).astype("float64")
+        eo.sum(result).backward()
+        assert result.dtype == "float64"
+        np.testing.assert_allclose(x.grad, [2.0])
+
+    def test_integer_cast_detaches_and_keeps_its_dtype(self):
+        result = eo.tensor([1.5], requires_grad=True).astype("int64")
+        assert result.requires_grad is False
+        assert result.dtype == "int64"
+        assert result.tolist() == [1]
+
+    def test_move_through_a_model(self):
+        model = eo.Sequential(eo.Linear(3, 2, seed=0))
+        eo.sum(model(eo.ones(4, 3)).to("cpu")).backward()
+        assert model[0].weight.grad is not None
+
+
+class TestMatmulGradientRanks:
+    """Every rank combination the forward pass accepts must also differentiate."""
+
+    @staticmethod
+    def _check(left_shape, right_shape, seed=0):
+        rng = np.random.default_rng(seed)
+        other = rng.normal(size=right_shape)
+        constant = eo.tensor(other)
+        values = rng.normal(size=left_shape)
+
+        tensor = eo.tensor(values.copy(), requires_grad=True)
+        eo.sum(eo.matmul(tensor, constant)).backward()
+
+        expected = numeric_gradient(
+            lambda array: eo.sum(eo.matmul(eo.tensor(array.copy()), constant)).item(),
+            values.copy(),
+        )
+        np.testing.assert_allclose(tensor.grad, expected, rtol=1e-4, atol=1e-6)
+
+    def test_matrix_matrix(self):
+        self._check((3, 4), (4, 2))
+
+    def test_vector_matrix(self):
+        self._check((4,), (4, 2))
+
+    def test_matrix_vector(self):
+        self._check((3, 4), (4,))
+
+    def test_vector_vector(self):
+        self._check((4,), (4,))
+
+    def test_vector_batched_matrix(self):
+        """The case the forward pass allowed but the backward pass used to reject."""
+        self._check((4,), (5, 4, 2))
+
+    def test_batched_matrix_matrix(self):
+        self._check((5, 3, 4), (4, 2))
+
+    def test_batched_matrix_vector(self):
+        self._check((5, 3, 4), (4,))
+
+    def test_batched_both_sides(self):
+        self._check((5, 3, 4), (5, 4, 2))
+
+    def test_gradient_of_the_right_operand_when_left_is_a_vector(self):
+        rng = np.random.default_rng(1)
+        left = eo.tensor(rng.normal(size=(4,)))
+        values = rng.normal(size=(5, 4, 2))
+
+        tensor = eo.tensor(values.copy(), requires_grad=True)
+        eo.sum(eo.matmul(left, tensor)).backward()
+
+        expected = numeric_gradient(
+            lambda array: eo.sum(eo.matmul(left, eo.tensor(array.copy()))).item(),
+            values.copy(),
+        )
+        np.testing.assert_allclose(tensor.grad, expected, rtol=1e-4, atol=1e-6)
+
+
 class TestGradientMode:
     def test_no_grad_disables_tracking(self):
         x = eo.tensor([2.0], requires_grad=True)

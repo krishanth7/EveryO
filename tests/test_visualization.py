@@ -82,53 +82,126 @@ class TestTrainingCharts:
 
 
 class TestBackendSelection:
-    """The chart backend must survive an interactive backend that cannot draw.
+    """Charts must be drawn even when the active backend cannot draw.
 
     A backend can import cleanly and still fail when a figure is created — a
-    Windows runner with a broken Tcl installation does exactly that. EveryO
-    must notice and fall back to Agg rather than propagating the failure.
+    Windows runner with a broken Tcl installation does exactly that. Checking
+    once per process is not enough, because anything else sharing the
+    interpreter can put a broken backend back in place between two calls.
     """
 
-    def test_falls_back_when_the_backend_cannot_create_a_figure(self, monkeypatch, tmp_path):
+    @staticmethod
+    def _install_broken_backend(monkeypatch, plt, fail_times):
+        """Make ``plt.subplots`` raise for the first ``fail_times`` calls."""
+        original = plt.subplots
+        state = {"calls": 0}
+
+        def flaky(*args, **kwargs):
+            state["calls"] += 1
+            if state["calls"] <= fail_times:
+                raise RuntimeError("Can't find a usable init.tcl (simulated)")
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(plt, "subplots", flaky)
+        return state
+
+    def test_chart_is_still_drawn_when_the_backend_cannot_create_a_figure(
+        self, monkeypatch, tmp_path, history
+    ):
         import matplotlib
 
         from everyo.visualization import _backend
 
         original_backend = matplotlib.get_backend()
         plt = _backend.get_pyplot()
-        original_figure = plt.figure
-
-        # Pretend a display exists so the pre-import check does not fire, and
-        # reset the one-time verification so it runs again for this test.
-        monkeypatch.setattr(_backend, "_no_display", lambda: False)
-        monkeypatch.setattr(_backend, "_VERIFIED", False)
         monkeypatch.setattr(_backend, "_HEADLESS", False)
-
-        attempts = {"count": 0}
-
-        def sometimes_broken(*args, **kwargs):
-            attempts["count"] += 1
-            if attempts["count"] == 1:
-                raise RuntimeError("Can't find a usable init.tcl (simulated)")
-            return original_figure(*args, **kwargs)
-
-        monkeypatch.setattr(plt, "figure", sometimes_broken)
+        state = self._install_broken_backend(monkeypatch, plt, fail_times=1)
 
         try:
-            recovered = _backend.get_pyplot()
-            assert _backend.using_headless_backend()
-            assert matplotlib.get_backend().lower() == "agg"
-
-            # And charts must still be produced after the fallback.
-            monkeypatch.setattr(plt, "figure", original_figure)
-            history = eo.History()
-            history.append(epoch=1, loss=1.0)
-            history.append(epoch=2, loss=0.5)
-            path = tmp_path / "after_fallback.png"
-            recovered.close(eo.plot_loss(history, save_path=path))
+            path = tmp_path / "recovered.png"
+            figure = eo.plot_loss(history, save_path=path)
+            assert figure.axes
             assert path.is_file() and path.stat().st_size > 0
+            assert state["calls"] >= 2, "the failing call should have been retried"
+            assert _backend.using_headless_backend()
         finally:
             matplotlib.use(original_backend, force=True)
+
+    def test_a_later_chart_recovers_too(self, monkeypatch, tmp_path, history):
+        """The regression that a once-per-process check did not catch.
+
+        The first chart succeeds, something puts a broken backend back, and the
+        next chart must still be produced rather than raising.
+        """
+        import matplotlib
+
+        from everyo.visualization import _backend
+
+        original_backend = matplotlib.get_backend()
+        plt = _backend.get_pyplot()
+        monkeypatch.setattr(_backend, "_HEADLESS", False)
+
+        first = tmp_path / "first.png"
+        eo.plot_loss(history, save_path=first)
+        assert first.is_file()
+
+        # Now break the backend again, mid-session.
+        self._install_broken_backend(monkeypatch, plt, fail_times=1)
+        try:
+            second = tmp_path / "second.png"
+            eo.plot_accuracy(history, save_path=second)
+            assert second.is_file() and second.stat().st_size > 0
+        finally:
+            matplotlib.use(original_backend, force=True)
+
+    def test_every_chart_helper_recovers(self, monkeypatch, tmp_path, history):
+        """The retry must cover every chart function, not just the loss curve."""
+        import matplotlib
+        import numpy as np
+
+        from everyo.visualization import _backend, plot_benchmark_bars
+
+        original_backend = matplotlib.get_backend()
+        plt = _backend.get_pyplot()
+        predictions = np.array([0, 1, 1])
+        targets = np.array([0, 1, 0])
+        benchmark = [{"backend": "numpy-cpu", "size": 128, "seconds": 0.01}]
+
+        charts = {
+            "loss": lambda path: eo.plot_loss(history, save_path=path),
+            "history": lambda path: eo.plot_history(history, save_path=path),
+            "confusion": lambda path: eo.plot_confusion_matrix(
+                predictions, targets, save_path=path
+            ),
+            "predictions": lambda path: eo.plot_predictions(
+                np.zeros((3, 2)), targets, predictions, save_path=path
+            ),
+            "benchmark": lambda path: eo.plot_benchmark(benchmark, save_path=path),
+            "bars": lambda path: plot_benchmark_bars(benchmark, save_path=path),
+        }
+
+        try:
+            for name, draw in charts.items():
+                monkeypatch.setattr(_backend, "_HEADLESS", False)
+                self._install_broken_backend(monkeypatch, plt, fail_times=1)
+                path = tmp_path / f"{name}.png"
+                draw(path)
+                assert path.is_file(), f"{name} chart was not written"
+                monkeypatch.undo()
+        finally:
+            matplotlib.use(original_backend, force=True)
+
+    def test_a_broken_agg_backend_is_reported_clearly(self, monkeypatch, history):
+        """When even Agg cannot draw, the error names the real problem."""
+        from everyo.exceptions import EveryOBackendError
+        from everyo.visualization import _backend
+
+        plt = _backend.get_pyplot()
+        monkeypatch.setattr(_backend, "_HEADLESS", True)
+        self._install_broken_backend(monkeypatch, plt, fail_times=99)
+
+        with pytest.raises(EveryOBackendError, match="Agg"):
+            eo.plot_loss(history)
 
     def test_is_available(self):
         from everyo.visualization import _backend

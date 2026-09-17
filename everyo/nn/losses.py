@@ -142,10 +142,7 @@ class BCEWithLogitsLoss(Loss):
         logits = as_tensor(prediction)
         true = as_tensor(target)
         _check_same_shape(logits, true, "BCEWithLogitsLoss")
-        max_part = ops.relu(logits)
-        cross = ops.subtract(max_part, ops.multiply(logits, true))
-        stable = ops.log(ops.add(1.0, ops.exp(ops.negative(ops.abs(logits)))))
-        return self._reduce(ops.add(cross, stable))
+        return self._reduce(ops.binary_cross_entropy_with_logits(logits, true))
 
 
 @register_module

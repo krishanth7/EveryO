@@ -49,15 +49,40 @@ def _require(strict: bool) -> object | None:
 
 
 def _prepare(*arrays: np.ndarray) -> list[np.ndarray]:
-    """Make arrays contiguous float32, the dtype the kernels are compiled for."""
+    """Make arrays contiguous. They are already float32; see :func:`_is_float32`."""
     return [np.ascontiguousarray(a, dtype=np.float32) for a in arrays]
+
+
+def _is_float32(*arrays: np.ndarray) -> bool:
+    """Return ``True`` when every array is already float32.
+
+    The kernels are compiled for float32 only. Casting other dtypes to float32
+    would silently lose precision for float64 tensors and corrupt integers
+    outside float32's exactly representable range, so anything else is served
+    by the NumPy backend instead.
+    """
+    return all(np.asarray(a).dtype == np.float32 for a in arrays)
+
+
+def _reject_dtype(strict: bool, *arrays: np.ndarray) -> None:
+    """Raise when a CUDA-only call was made with a dtype the kernels lack."""
+    if strict:
+        dtypes = ", ".join(sorted({str(np.asarray(a).dtype) for a in arrays}))
+        raise EveryOCudaError(
+            f"The EveryO CUDA kernels are compiled for float32 only, but this "
+            f"call passed {dtypes}. Cast the data with .astype('float32') to "
+            f"use the GPU, or drop strict=True to compute on the CPU without "
+            f"losing precision."
+        )
 
 
 def get_kernel(name: str) -> Callable[..., np.ndarray] | None:
     """Return the CUDA implementation of ``name``, or ``None`` when unavailable.
 
     Used by :mod:`everyo.core.operations` to dispatch tensors whose device is
-    ``cuda`` without paying an import cost on CPU-only machines.
+    ``cuda`` without paying an import cost on CPU-only machines. The returned
+    callable serves non-float32 inputs from the NumPy backend rather than
+    casting them, so dtypes are never silently downgraded.
     """
     if name not in KERNEL_NAMES or not is_available():
         return None
@@ -67,6 +92,9 @@ def get_kernel(name: str) -> Callable[..., np.ndarray] | None:
 def add(a: np.ndarray, b: np.ndarray, *, strict: bool = False) -> np.ndarray:
     """Element-wise addition on the GPU (shapes must match exactly)."""
     module = _require(strict)
+    if not _is_float32(a, b):
+        _reject_dtype(strict, a, b)
+        return numpy_backend.add(a, b)
     if module is None or a.shape != b.shape:
         return numpy_backend.add(a, b)
     lhs, rhs = _prepare(a, b)
@@ -76,6 +104,9 @@ def add(a: np.ndarray, b: np.ndarray, *, strict: bool = False) -> np.ndarray:
 def multiply(a: np.ndarray, b: np.ndarray, *, strict: bool = False) -> np.ndarray:
     """Element-wise multiplication on the GPU (shapes must match exactly)."""
     module = _require(strict)
+    if not _is_float32(a, b):
+        _reject_dtype(strict, a, b)
+        return numpy_backend.multiply(a, b)
     if module is None or a.shape != b.shape:
         return numpy_backend.multiply(a, b)
     lhs, rhs = _prepare(a, b)
@@ -85,6 +116,9 @@ def multiply(a: np.ndarray, b: np.ndarray, *, strict: bool = False) -> np.ndarra
 def matmul(a: np.ndarray, b: np.ndarray, *, strict: bool = False) -> np.ndarray:
     """Matrix product on the GPU for 2-D float inputs."""
     module = _require(strict)
+    if not _is_float32(a, b):
+        _reject_dtype(strict, a, b)
+        return numpy_backend.matmul(a, b)
     if module is None or a.ndim != 2 or b.ndim != 2:
         return numpy_backend.matmul(a, b)
     lhs, rhs = _prepare(a, b)
@@ -94,6 +128,9 @@ def matmul(a: np.ndarray, b: np.ndarray, *, strict: bool = False) -> np.ndarray:
 def relu(x: np.ndarray, *, strict: bool = False) -> np.ndarray:
     """ReLU activation on the GPU."""
     module = _require(strict)
+    if not _is_float32(x):
+        _reject_dtype(strict, x)
+        return numpy_backend.relu(x)
     if module is None:
         return numpy_backend.relu(x)
     (values,) = _prepare(x)
@@ -103,6 +140,9 @@ def relu(x: np.ndarray, *, strict: bool = False) -> np.ndarray:
 def sum_all(x: np.ndarray, *, strict: bool = False) -> np.ndarray:
     """Full reduction on the GPU."""
     module = _require(strict)
+    if not _is_float32(x):
+        _reject_dtype(strict, x)
+        return numpy_backend.sum_all(x)
     if module is None:
         return numpy_backend.sum_all(x)
     (values,) = _prepare(x)

@@ -6,7 +6,37 @@ All notable changes to EveryO are recorded here. The format follows
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Moving a tensor no longer severs the autograd graph.** `.to()`, `.cpu()`,
+  `.cuda()` and `.astype()` produced a tensor that reported
+  `requires_grad=True` but had no edge back to its source, so
+  `(x * 2).to("cpu").sum().backward()` silently left `x.grad` unset. Moves are
+  now differentiable; a cast to an integer or boolean dtype detaches openly
+  (and keeps the requested dtype, which the detach path also used to lose).
+- **`BCEWithLogitsLoss` now has the correct derivative at zero.** Composing
+  `relu` and `abs` gave both a zero subgradient at `x = 0`, yielding `-target`
+  instead of `sigmoid(0) - target = 0.5 - target`, which doubled the step for
+  positive labels and cancelled it for negative ones. Zero logits are common
+  with zero-initialised output layers, so the loss now has a dedicated backward
+  pass.
+- **`matmul` differentiates every rank combination it accepts.** A vector times
+  a batched matrix succeeded in the forward pass and then raised a core
+  dimension error in `backward()`. Gradients are now computed by promoting 1-D
+  operands, which covers all vector, matrix and batched combinations.
+- **CUDA kernels no longer coerce dtypes.** Every dispatched kernel cast its
+  inputs to float32, silently losing precision for float64 tensors and
+  corrupting large integers. Non-float32 inputs are now served by the NumPy
+  backend, and a `strict=True` call with an unsupported dtype explains why.
+- **A summed loss is no longer multiplied by the batch size.** With
+  `reduction="sum"` the batch total was weighted by the batch size a second
+  time, inflating the recorded loss and making it depend on batching — which
+  also affected validation, early stopping and checkpoint selection.
+- **Charts are drawn even when the active matplotlib backend cannot draw.**
+  Every chart is now created through a helper that retries on Agg per call. A
+  once-per-process check was not enough: an interactive backend that imports
+  cleanly but fails to open a window could be restored mid-session, and later
+  charts would still raise.
 
 ## [0.1.0] - 2026-09-17
 

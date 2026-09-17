@@ -84,6 +84,62 @@ class TestBCELoss:
         assert np.isfinite(loss.item())
 
 
+class TestBCEWithLogitsGradient:
+    """The from-logits form must be exactly right at the awkward point, x = 0."""
+
+    def test_gradient_at_zero_logits(self):
+        """d/dx BCEWithLogits = sigmoid(x) - y, which is 0.5 - y at x = 0.
+
+        Composing relu() and abs() gives both a zero subgradient there and
+        yields -y instead, which doubles the step for positive labels and
+        cancels it for negative ones.
+        """
+        logits = eo.tensor([0.0, 0.0], requires_grad=True)
+        eo.BCEWithLogitsLoss(reduction="sum")(logits, eo.tensor([1.0, 0.0])).backward()
+        np.testing.assert_allclose(logits.grad, [-0.5, 0.5], rtol=1e-6)
+
+    def test_gradient_is_sigmoid_minus_target(self, rng):
+        values = rng.normal(size=(12, 1))
+        targets = rng.integers(0, 2, size=(12, 1)).astype(np.float64)
+
+        logits = eo.tensor(values, requires_grad=True)
+        eo.BCEWithLogitsLoss(reduction="sum")(logits, eo.tensor(targets)).backward()
+
+        expected = 1.0 / (1.0 + np.exp(-values)) - targets
+        np.testing.assert_allclose(logits.grad, expected, rtol=1e-5, atol=1e-7)
+
+    def test_gradient_matches_finite_differences(self, rng):
+        values = rng.normal(size=(8, 1))
+        targets = rng.integers(0, 2, size=(8, 1)).astype(np.float64)
+
+        logits = eo.tensor(values.copy(), requires_grad=True)
+        eo.BCEWithLogitsLoss(reduction="sum")(logits, eo.tensor(targets)).backward()
+
+        expected = numeric_gradient(
+            lambda array: eo.BCEWithLogitsLoss(reduction="sum")(
+                eo.tensor(array.copy()), eo.tensor(targets)
+            ).item(),
+            values.copy(),
+        )
+        np.testing.assert_allclose(logits.grad, expected, rtol=1e-4, atol=1e-6)
+
+    def test_zero_logits_train_away_from_the_starting_point(self):
+        """A model whose logits start at zero must still learn both classes."""
+        model = eo.Sequential(eo.Linear(2, 1, bias=True, initializer="zeros", seed=0))
+        optimizer = eo.SGD(model.parameters(), lr=0.5)
+        loss_fn = eo.BCEWithLogitsLoss()
+
+        features = eo.tensor([[1.0, 0.0], [0.0, 1.0]])
+        targets = eo.tensor([[1.0], [0.0]])
+        for _ in range(50):
+            optimizer.zero_grad()
+            loss_fn(model(features), targets).backward()
+            optimizer.step()
+
+        predictions = eo.sigmoid(model(features)).numpy().reshape(-1)
+        assert predictions[0] > 0.7 and predictions[1] < 0.3
+
+
 class TestCrossEntropyLoss:
     def test_confident_correct_prediction_is_near_zero(self):
         logits = eo.tensor([[20.0, 0.0, 0.0]])

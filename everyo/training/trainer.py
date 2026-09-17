@@ -95,6 +95,21 @@ class Trainer:
                 raise TypeError(f"Metrics must be names or callables, got {type(metric).__name__}.")
         return resolved
 
+    def _loss_is_summed(self) -> bool:
+        """Return ``True`` when the loss already sums over the batch.
+
+        A loss built with ``reduction="sum"`` returns the batch total, so
+        weighting it by the batch size again would inflate the epoch loss and
+        make it depend on how the data was batched. Losses without a
+        ``reduction`` attribute are assumed to average, which is the documented
+        default and what every EveryO loss does.
+        """
+        return getattr(self.loss_fn, "reduction", "mean") == "sum"
+
+    def _accumulate(self, batch_loss: float, count: int) -> float:
+        """Return this batch's contribution to the epoch's total loss."""
+        return batch_loss if self._loss_is_summed() else batch_loss * count
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -168,7 +183,7 @@ class Trainer:
                 output = self.model(features)
                 loss = self.loss_fn(output, target)
                 count = int(features.shape[0]) if features.ndim else 1
-                total_loss += float(loss.item()) * count
+                total_loss += self._accumulate(float(loss.item()), count)
                 total_samples += count
                 if self.metrics:
                     predictions.append(output.numpy())
@@ -240,7 +255,7 @@ class Trainer:
 
             count = int(features.shape[0]) if features.ndim else 1
             batch_loss = float(loss.item())
-            total_loss += batch_loss * count
+            total_loss += self._accumulate(batch_loss, count)
             total_samples += count
             if self.metrics:
                 predictions.append(output.numpy())

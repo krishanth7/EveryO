@@ -8,7 +8,7 @@ from typing import Any, Sequence
 import numpy as np
 
 from everyo.training.metrics import confusion_matrix as compute_confusion_matrix
-from everyo.visualization._backend import get_pyplot
+from everyo.visualization._backend import create_figure
 from everyo.visualization.training import _finish
 
 __all__ = ["plot_confusion_matrix", "plot_predictions", "plot_decision_boundary"]
@@ -26,13 +26,12 @@ def plot_confusion_matrix(
     figsize: tuple[float, float] = (6.0, 5.5),
 ) -> Any:
     """Draw a confusion matrix as an annotated heat map."""
-    plt = get_pyplot()
     matrix = compute_confusion_matrix(predictions, targets).astype(np.float64)
     if normalize:
         matrix = matrix / np.maximum(matrix.sum(axis=1, keepdims=True), 1.0)
 
     labels = list(class_names) if class_names else [str(i) for i in range(len(matrix))]
-    figure, axes = plt.subplots(figsize=figsize)
+    figure, axes = create_figure(lambda plt: plt.subplots(figsize=figsize))
     image = axes.imshow(matrix, cmap="Blues")
     figure.colorbar(image, ax=axes, fraction=0.046, pad=0.04)
 
@@ -71,12 +70,11 @@ def plot_predictions(
     For 1-D inputs the chart is drawn against the feature; otherwise predictions
     are drawn against targets with the ideal ``y = x`` line.
     """
-    plt = get_pyplot()
     x = np.asarray(features)
     y_true = np.asarray(targets).reshape(-1)
     y_pred = np.asarray(predictions).reshape(-1)
 
-    figure, axes = plt.subplots(figsize=figsize)
+    figure, axes = create_figure(lambda plt: plt.subplots(figsize=figsize))
     if x.ndim == 2 and x.shape[1] == 1:
         order = np.argsort(x.reshape(-1))
         axes.scatter(x.reshape(-1)[order], y_true[order], s=12, alpha=0.6, label="target")
@@ -112,7 +110,6 @@ def plot_decision_boundary(
         labels: Integer class labels for the training inputs.
         resolution: Grid resolution per axis.
     """
-    plt = get_pyplot()
     x = np.asarray(features)
     if x.ndim != 2 or x.shape[1] != 2:
         raise ValueError(
@@ -127,7 +124,7 @@ def plot_decision_boundary(
     grid = np.column_stack([grid_x.ravel(), grid_y.ravel()]).astype(np.float32)
     zones = np.asarray(predict_fn(grid)).reshape(grid_x.shape)
 
-    figure, axes = plt.subplots(figsize=figsize)
+    figure, axes = create_figure(lambda plt: plt.subplots(figsize=figsize))
     axes.contourf(grid_x, grid_y, zones, alpha=0.25, cmap="viridis")
     axes.scatter(x[:, 0], x[:, 1], c=y, s=14, cmap="viridis", edgecolors="k", linewidths=0.3)
     axes.set(xlabel="feature 1", ylabel="feature 2", title=title)

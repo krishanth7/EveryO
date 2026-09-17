@@ -7,9 +7,11 @@ actually draw. Two checks are needed:
 1. On Linux, no ``DISPLAY``/``WAYLAND_DISPLAY`` means there is no display to
    draw on, which is known before importing ``pyplot``.
 2. Everywhere else, the only reliable test is to try: an interactive backend
-   can be importable yet still fail to build a figure (a Windows CI runner with
-   a broken Tcl installation, for example). The first figure is therefore
-   created defensively, and a failure switches to Agg.
+   can be importable yet still fail to build a figure (a Windows runner with a
+   broken Tcl installation, for example). Every figure is therefore created
+   through :func:`create_figure`, which retries on Agg when the active backend
+   raises. That check is per call rather than once per process, because the
+   backend can be changed again by anything else sharing the interpreter.
 
 A backend the user configured themselves (via ``MPLBACKEND`` or an explicit
 ``matplotlib.use(...)``) is respected: matplotlib records that choice before
@@ -20,17 +22,16 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Any
+from typing import Any, Callable
 
 from everyo._logging import get_logger
 from everyo.exceptions import EveryOBackendError
 
-__all__ = ["get_pyplot", "is_available", "using_headless_backend"]
+__all__ = ["create_figure", "get_pyplot", "is_available", "using_headless_backend"]
 
 _LOGGER = get_logger(__name__)
 
 _HEADLESS = False
-_VERIFIED = False
 
 
 def _no_display() -> bool:
@@ -54,11 +55,8 @@ def get_pyplot() -> Any:
     """Import and return ``matplotlib.pyplot``, usable in headless environments.
 
     Raises:
-        EveryOBackendError: If matplotlib is not installed, or if even the Agg
-            backend cannot draw.
+        EveryOBackendError: If matplotlib is not installed.
     """
-    global _VERIFIED
-
     try:
         import matplotlib
     except ImportError as exc:  # pragma: no cover - matplotlib is a core dependency
@@ -71,28 +69,54 @@ def get_pyplot() -> Any:
 
     import matplotlib.pyplot as plt
 
-    if not _VERIFIED:
-        _VERIFIED = True
-        if not _HEADLESS:
-            # An interactive backend can import and still fail to open a
-            # window, so confirm it can build a figure before relying on it.
-            try:
-                plt.close(plt.figure())
-            except Exception as exc:  # noqa: BLE001 - any backend failure counts
-                _switch_to_agg(
-                    matplotlib,
-                    f"the '{matplotlib.get_backend()}' backend could not create a figure ({exc})",
-                )
-                try:
-                    plt.close(plt.figure())
-                except Exception as agg_exc:  # pragma: no cover - broken install
-                    raise EveryOBackendError(
-                        "Matplotlib could not create a figure with either the "
-                        f"default backend or Agg ({agg_exc}). The matplotlib "
-                        "installation appears to be broken."
-                    ) from agg_exc
-
     return plt
+
+
+def create_figure(factory: Callable[[Any], Any]) -> Any:
+    """Build a figure with ``factory``, retrying on Agg if the backend cannot draw.
+
+    Every EveryO chart is created through this helper rather than by calling
+    ``plt.subplots`` directly. Checking the backend once at import time is not
+    enough: an interactive backend can import cleanly, and anything that
+    re-resolves the backend later (another library, a test fixture, a
+    ``matplotlib.use`` call elsewhere in the process) can put a broken one back
+    in place between two chart calls. Retrying per call means a chart is drawn
+    whenever Agg can draw it, which is always.
+
+    Args:
+        factory: Callable taking ``pyplot`` and returning whatever
+            ``plt.subplots`` returns.
+
+    Returns:
+        The factory's result.
+
+    Raises:
+        EveryOBackendError: If even the Agg backend cannot create a figure.
+    """
+    plt = get_pyplot()
+    try:
+        return factory(plt)
+    except Exception as exc:  # noqa: BLE001 - any backend failure counts
+        if using_headless_backend():
+            raise EveryOBackendError(
+                f"Matplotlib could not create a figure with the Agg backend "
+                f"({exc}). The matplotlib installation appears to be broken."
+            ) from exc
+
+        import matplotlib
+
+        _switch_to_agg(
+            matplotlib,
+            f"the '{matplotlib.get_backend()}' backend could not create a figure ({exc})",
+        )
+        try:
+            return factory(get_pyplot())
+        except Exception as agg_exc:  # pragma: no cover - broken install
+            raise EveryOBackendError(
+                "Matplotlib could not create a figure with either the default "
+                f"backend or Agg ({agg_exc}). The matplotlib installation "
+                "appears to be broken."
+            ) from agg_exc
 
 
 def is_available() -> bool:
