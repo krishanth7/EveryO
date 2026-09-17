@@ -109,6 +109,10 @@ class EarlyStopping(Callback):
         min_delta: Minimum change that counts as an improvement.
         mode: ``"min"`` (lower is better) or ``"max"``.
         restore_best_weights: Restore the best parameters when stopping.
+        verbose: Print a line when training stops and when weights are
+            restored. Without it the restore is invisible, and the metrics
+            reported after ``fit`` look inconsistent with the last epoch —
+            because they describe the restored best model, not the last one.
     """
 
     def __init__(
@@ -119,6 +123,7 @@ class EarlyStopping(Callback):
         min_delta: float = 0.0,
         mode: str = "min",
         restore_best_weights: bool = True,
+        verbose: bool = True,
     ) -> None:
         if mode not in ("min", "max"):
             raise ValueError(f"mode must be 'min' or 'max', got {mode!r}.")
@@ -129,6 +134,7 @@ class EarlyStopping(Callback):
         self.min_delta = float(min_delta)
         self.mode = mode
         self.restore_best_weights = bool(restore_best_weights)
+        self.verbose = bool(verbose)
         self.best = math.inf if mode == "min" else -math.inf
         self.best_epoch = 0
         self.wait = 0
@@ -168,15 +174,21 @@ class EarlyStopping(Callback):
             trainer.stop_training = True
             if self.restore_best_weights and self._best_state is not None:
                 trainer.model.load_state_dict(self._best_state)
-                _LOGGER.info(
-                    "Early stopping at epoch %d; restored weights from epoch %d (%s=%.6f).",
-                    epoch,
-                    self.best_epoch,
-                    self.monitor,
-                    self.best,
+                message = (
+                    f"Early stopping at epoch {epoch}: no improvement in "
+                    f"{self.monitor} for {self.patience + 1} epochs. Restored "
+                    f"the best weights from epoch {self.best_epoch} "
+                    f"({self.monitor}={self.best:.6f}) — metrics measured after "
+                    f"fit() describe that model, not the last epoch."
                 )
             else:
-                _LOGGER.info("Early stopping at epoch %d.", epoch)
+                message = (
+                    f"Early stopping at epoch {epoch}: no improvement in "
+                    f"{self.monitor} for {self.patience + 1} epochs."
+                )
+            _LOGGER.info("%s", message)
+            if self.verbose:
+                print(message, flush=True)
 
 
 class ModelCheckpoint(Callback):

@@ -1,16 +1,26 @@
-# .github/FUNDING.yml
-# Funding configuration for EveryO
+# Funding configuration for EveryO.
+#
+# GitHub reads this file to render the "Sponsor" button on the repository.
+# IMPORTANT: this file alone does not create the button. Each platform listed
+# here must already be set up and active, otherwise GitHub silently hides the
+# entry — which is the usual reason a Sponsor button never appears.
+#
+# Checklist for the github: entry below
+#   1. Enable GitHub Sponsors for the account:  https://github.com/sponsors
+#   2. Complete the profile, tiers and payout details, then submit for approval.
+#   3. Wait for the account to be approved — until then the button stays hidden.
+#   4. The username must match exactly (it is krishanth7, the owner of this repo).
+#
+# Only uncomment a platform once that account genuinely exists; a dead link is
+# worse than no button at all.
 
-github: [krishanthb7]
-patreon:
-open_collective:
-ko_fi:
-tidelift:
-community_bridge:
-liberapay:
-issuehunt:
-lfx_crowdfunding:
-polar:
-buy_me_a_coffee:
-thanks_dev:
-custom:
+github: [krishanth7]
+
+# ko_fi: your-ko-fi-name
+# buy_me_a_coffee: your-bmac-name
+# open_collective: your-collective
+# polar: your-polar-name
+# patreon: your-patreon-name
+# liberapay: your-liberapay-name
+# thanks_dev: your-thanks-dev-name
+# custom: ["https://example.com/donate"]

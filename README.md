@@ -1,533 +1,282 @@
-# EveryO
+<div align="center">
 
-**EveryO is an open-source neural computing and experimentation framework for
-building, training, evaluating and understanding neural networks across CPU and
-GPU environments.**
+<img src="docs/assets/banner.png" alt="EveryO — open-source neural computing framework" width="100%">
+
+<h3>Neural networks, from the math up — not from a wrapper down.</h3>
+
+<p><b>EveryO</b> is a neural computing framework whose autograd engine, layers, optimizers and training loop
+are written from scratch on NumPy — then accelerated with optional CUDA kernels and cross-checked against TensorFlow.<br>
+Small enough to read in an afternoon. Correct enough to trust.</p>
 
 [![tests](https://github.com/krishanth7/EveryO/actions/workflows/tests.yml/badge.svg)](https://github.com/krishanth7/EveryO/actions/workflows/tests.yml)
-[![Python](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230)](https://docs.astral.sh/ruff/)
+[![CUDA build](https://github.com/krishanth7/EveryO/actions/workflows/cuda-build.yml/badge.svg)](https://github.com/krishanth7/EveryO/actions/workflows/cuda-build.yml)
+[![Python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2a78d6)](LICENSE)
+[![Ruff](https://img.shields.io/badge/code%20style-ruff-261230?logo=ruff&logoColor=white)](https://docs.astral.sh/ruff/)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-eb6834)](CONTRIBUTING.md)
+[![Stars](https://img.shields.io/github/stars/krishanth7/EveryO?style=flat&color=eda100)](https://github.com/krishanth7/EveryO/stargazers)
+
+**[Quick start](#-quick-start-60-seconds) · [What it does](#-what-it-actually-does) · [Results](#-results-from-a-real-run) · [Architecture](#-architecture) · [Roadmap](#-roadmap) · [Contribute](#-contributing)**
+
+</div>
 
 ---
 
-## Overview
+## Why this exists
 
-EveryO implements the machinery of a neural network framework — tensors,
-automatic differentiation, layers, optimizers, a training loop — from first
-principles on top of NumPy, and then makes that machinery fast where it matters
-through optional TensorFlow and CUDA backends.
+Every deep-learning tutorial ends at `model.fit()`. Every production framework starts a million lines below it.
+There is almost nothing in between you can actually *read*.
 
-The CPU path is complete and always available. TensorFlow and CUDA are
-accelerators and cross-checks, never requirements: a laptop with no GPU, no
-CUDA Toolkit and no TensorFlow runs everything in this repository except the
-GPU-specific tests, which skip themselves.
+EveryO is that middle. The gradient engine is **251 lines**. The whole core is **~8,000 lines** across 54 focused
+modules. You can follow a single number from `loss.backward()` all the way to a CUDA kernel — and every gradient
+in it is verified against finite differences **and** against TensorFlow.
 
 ```
-BUILD  ->  TRAIN  ->  MEASURE  ->  UNDERSTAND  ->  ACCELERATE
+BUILD  →  TRAIN  →  MEASURE  →  UNDERSTAND  →  ACCELERATE
 ```
 
-## Why EveryO?
+<div align="center">
+<img src="docs/assets/terminal.png" alt="everyo doctor and everyo demo running end to end" width="92%">
+</div>
 
-Most frameworks are either educational toys that cannot train anything real, or
-production systems whose internals are effectively closed to a reader. EveryO
-aims at the space between:
+---
 
-* **Readable.** The autograd engine is roughly 250 lines. The whole `core` layer
-  can be read in an afternoon, and the docs explain *why* each piece is shaped
-  the way it is.
-* **Actually correct.** Every gradient is verified against finite differences,
-  and operations are compared against NumPy and (when installed) TensorFlow.
-  433 tests run in well under a minute on CPU (8 of them skip without a GPU).
-* **Honest about limits.** Nothing here is a placeholder. Features are marked
-  Available, Experimental or Planned, and benchmark numbers come from runs on
-  your own machine, never from this README.
-* **Self-contained.** No API keys, no accounts, no external AI services, no
-  network access in the core. Datasets are generated locally from a seed.
-
-## Features
-
-### Available
-
-| Area | What works |
-| --- | --- |
-| Tensors | Creation, dtypes, devices, broadcasting, indexing, reshaping, reductions, NumPy interoperability |
-| Autograd | Reverse-mode gradients for 25+ operations, iterative graph traversal, `no_grad` mode, finite-difference verified |
-| Layers | `Linear`, `Flatten`, `Dropout`, `Sequential`, and a `Module` base class you can subclass |
-| Activations | ReLU, sigmoid, tanh, softmax, log-softmax — as functions and as modules |
-| Losses | MSE, MAE, binary cross entropy (with a stable from-logits form), cross entropy |
-| Optimizers | SGD, SGD with momentum and Nesterov, Adam (with weight decay and AMSGrad) |
-| Data | `Dataset`, `ArrayDataset`, `DataLoader`, CSV loading, scalers, train/test and stratified splits |
-| Training | `Trainer` with validation, metrics, early stopping, checkpointing, LR scheduling, gradient clipping, history export |
-| Serialization | Safe pickle-free `.evo` archives that cannot execute code on load |
-| Visualization | Loss, accuracy, confusion matrix, prediction, decision boundary and benchmark charts; headless-safe |
-| CLI | `everyo info`, `doctor`, `benchmark`, `test`, `demo` |
-| NumPy backend | The reference implementation of every kernel |
-| TensorFlow backend | Optional: numerical cross-checks, Keras reference models, benchmarks |
-| CUDA backend | Optional: vector add, element-wise multiply, ReLU, tiled matmul, tree reduction — with automatic CPU fallback |
-
-### Experimental
-
-* CUDA kernel dispatch for tensors placed on a `cuda` device. The kernels are
-  correct and checked against NumPy, but every call currently copies data to
-  the device and back, so the GPU is not necessarily faster. Measure before
-  relying on it.
-
-### Planned
-
-Not implemented in v0.1.0 — see the [roadmap](#roadmap).
-
-## Architecture
-
-```
-                everyo.cli            everyo.visualization
-                     |                          |
-        +------------+--------------------------+
-        |
-   everyo.training  (Trainer, callbacks, history, metrics)
-        |
-   everyo.optim     (SGD, Adam)          everyo.serialization  (.evo archives)
-        |                                        |
-   everyo.nn        (Module, layers, activations, losses)
-        |
-   everyo.core      (Tensor, operations, autograd, device, dtype)
-        |
-   everyo.backends  (numpy_backend, tensorflow_backend)  everyo.cuda
-        |                                                    |
-      NumPy                                     optional native extension
-```
-
-Each layer depends only on the ones below it. See
-[docs/architecture.md](docs/architecture.md) for the reasoning behind the
-design decisions.
-
-## Installation
+## ⚡ Quick start (60 seconds)
 
 ```bash
 git clone https://github.com/krishanth7/EveryO.git
-cd EveryO
-
-python -m venv .venv
+cd EveryO && pip install -e .
+everyo demo          # trains a digit classifier end to end
 ```
-
-Linux/macOS:
-
-```bash
-source .venv/bin/activate
-```
-
-Windows (PowerShell):
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-Then:
-
-```bash
-pip install -e .
-pytest
-```
-
-Optional extras:
-
-```bash
-pip install -e ".[dev]"          # pytest, ruff, PyYAML
-pip install -e ".[tensorflow]"   # the TensorFlow backend (large download)
-pip install -e ".[cuda]"         # pybind11, for building the CUDA extension
-```
-
-Verify the installation:
-
-```bash
-everyo info
-everyo doctor
-```
-
-`doctor` runs a real gradient check rather than only importing modules, and
-explains exactly why any optional component is unavailable.
-
-## Quick start
 
 ```python
 import everyo as eo
 
-x = eo.tensor([[1.0, 2.0]])
-y = eo.tensor([[3.0], [4.0]])
-
-result = eo.matmul(x, y)
-print(result)
-# Tensor([[11.]], shape=(1, 1), dtype=float32)
-```
-
-Gradients:
-
-```python
 x = eo.tensor([2.0], requires_grad=True)
 y = x * x
 y.backward()
 
-print(x.grad)  # [4.]
+print(x.grad)  # [4.]   ← your own autograd engine, not a binding
 ```
 
-A network, trained:
-
-```python
-import everyo as eo
-from everyo.datasets import make_blobs
-
-features, labels = make_blobs(n_samples=600, n_features=4, centers=3, seed=0)
-x_train, x_test, y_train, y_test = eo.stratified_split(features, labels, test_size=0.2, seed=0)
-
-model = eo.Sequential(
-    eo.Linear(4, 16),
-    eo.ReLU(),
-    eo.Linear(16, 3),
-)
-
-trainer = eo.Trainer(
-    model=model,
-    optimizer=eo.Adam(model.parameters(), lr=0.01),
-    loss_fn=eo.CrossEntropyLoss(),
-    metrics=["accuracy"],
-)
-
-history = trainer.fit(
-    eo.DataLoader(eo.ArrayDataset(x_train, y_train), batch_size=32, shuffle=True, seed=0),
-    epochs=20,
-    validation_loader=eo.DataLoader(eo.ArrayDataset(x_test, y_test), batch_size=64),
-)
-
-print(trainer.evaluate(eo.DataLoader(eo.ArrayDataset(x_test, y_test), batch_size=64)))
-```
-
-## Tensor operations
-
-```python
-import everyo as eo
-
-x = eo.tensor([[1.0, 2.0], [3.0, 4.0]])
-
-x.shape, x.ndim, x.dtype, x.device, x.size
-
-x + 10  # broadcasting against a scalar
-x * x  # element-wise
-eo.matmul(x, x)  # matrix product, also x @ x
-
-eo.sum(x)  # 10.0
-eo.mean(x, axis=0)  # column means
-eo.max(x, axis=1)  # row maxima
-
-x.reshape(4, 1)
-x.T
-eo.flatten(x)
-
-eo.normal((2, 3), seed=0)  # reproducible random tensors
-eo.zeros(2, 3), eo.ones(2, 3), eo.eye(3)
-```
-
-Shape errors explain themselves:
-
-```python
->>> eo.matmul(eo.zeros(32, 64), eo.zeros(128, 10))
-EveryOShapeError: Cannot multiply matrices with shapes (32, 64) and (128, 10).
-Expected the inner dimensions to match: 64 != 128.
-```
-
-## Building neural networks
+Build and train a network:
 
 ```python
 model = eo.Sequential(
-    eo.Linear(784, 256),
+    eo.Linear(64, 128),
     eo.ReLU(),
     eo.Dropout(0.2),
-    eo.Linear(256, 128),
-    eo.ReLU(),
     eo.Linear(128, 10),
 )
 
-print(model.summary())
-print(model.num_parameters())
-```
-
-Or write your own module:
-
-```python
-from everyo.nn import Module, register_module
-
-
-@register_module
-class Residual(Module):
-    """A linear layer with a skip connection."""
-
-    def __init__(self, size: int) -> None:
-        super().__init__()
-        self.size = size
-        self.linear = eo.Linear(size, size)
-
-    def forward(self, x):
-        return eo.add(x, eo.relu(self.linear(x)))
-
-    def get_config(self):
-        return {"size": self.size}
-```
-
-Registering the class is what lets a model containing it be saved and loaded.
-
-## Training
-
-```python
 trainer = eo.Trainer(
-    model=model,
-    optimizer=eo.Adam(model.parameters(), lr=0.001),
-    loss_fn=eo.CrossEntropyLoss(),
-    metrics=["accuracy"],
-    gradient_clip=1.0,
+    model, eo.Adam(model.parameters(), lr=0.005), eo.CrossEntropyLoss(), metrics=["accuracy"]
 )
 
-history = trainer.fit(
-    train_loader,
-    epochs=50,
-    validation_loader=validation_loader,
-    callbacks=[
-        eo.EarlyStopping(monitor="val_loss", patience=5),
-        eo.ModelCheckpoint("artifacts/best.evo", monitor="val_accuracy", mode="max"),
-        eo.CSVLogger("artifacts/history.csv"),
-    ],
-)
-
-results = trainer.evaluate(test_loader)
-predictions = trainer.predict_classes(x_test)
+history = trainer.fit(train_loader, epochs=25, validation_loader=test_loader)
 ```
 
-`history` records loss, validation loss, every configured metric and the
-elapsed time per epoch, and exports with `history.to_json(...)` or
-`history.to_csv(...)`.
+---
 
-Saving and loading:
+## 📊 Results from a real run
 
-```python
-eo.save(model, "model.evo", metadata={"accuracy": 0.99})
-model = eo.load("model.evo")
+Every image below was produced by the code in this repository, on a CPU, in under a second of training.
+Reproduce them with `python examples/neural_network.py`.
+
+<div align="center">
+<img src="docs/assets/training-curves.png" alt="Training and validation curves over 25 epochs" width="100%">
+</div>
+
+**99.3% on 600 held-out digits** — from a 17,226-parameter network that trains in **0.85 s**:
+
+<div align="center">
+<img src="docs/assets/confusion-matrix.png" alt="Confusion matrix, 99.3% accuracy on held-out digits" width="62%">
+</div>
+
+And the thing a linear model simply cannot do — a curved decision boundary, learned:
+
+<div align="center">
+<img src="docs/assets/decision-boundary.png" alt="Linear model at 88.5% versus EveryO MLP at 99.7% on two moons" width="100%">
+</div>
+
+---
+
+## 🎯 What it actually does
+
+| | Available today |
+|---|---|
+| **Tensors** | dtypes, devices, broadcasting, indexing, reductions, NumPy interop |
+| **Autograd** | reverse-mode gradients for 25+ ops, iterative graph walk, `no_grad`, finite-difference verified |
+| **Layers** | `Linear`, `Flatten`, `Dropout`, `Sequential` + a `Module` base you can subclass |
+| **Activations** | ReLU, sigmoid, tanh, softmax, log-softmax — as functions *and* modules |
+| **Losses** | MSE, MAE, BCE, BCE-with-logits (numerically stable), cross-entropy |
+| **Optimizers** | SGD, momentum, Nesterov, weight decay, Adam, AMSGrad |
+| **Data** | `Dataset`, `DataLoader`, CSV loading, scalers, stratified splits |
+| **Training** | validation, metrics, early stopping, checkpointing, LR scheduling, gradient clipping |
+| **Serialization** | `.evo` archives that **cannot execute code on load** |
+| **Visualization** | every chart on this page, headless-safe |
+| **CLI** | `everyo info · doctor · benchmark · test · demo` |
+| **CUDA** | 5 hand-written kernels + pybind11 bindings, with automatic CPU fallback |
+| **TensorFlow** | optional cross-checks and a Keras reference model |
+
+> **Experimental** — CUDA dispatch for tensors on a `cuda` device: kernels are correct and checked against NumPy,
+> but each call still copies to the device and back, so measure before relying on it.
+>
+> **Planned** — convolutions, normalization layers, attention, GPU-resident tensors, mixed precision, ONNX.
+> These are *not* implemented; see the [roadmap](#-roadmap).
+
+---
+
+## 🔬 Correctness is the feature
+
+Anyone can write something that *looks* like a framework. Here is why you can trust this one:
+
+```
+gradients      vs finite differences ..... every differentiable op, in float64
+matmul         vs TensorFlow ............. 0.000e+00
+relu           vs TensorFlow ............. 0.000e+00
+softmax        vs TensorFlow ............. 2.980e-08
+cross-entropy  vs TensorFlow ............. exact to 6 decimal places
+its GRADIENT   vs TensorFlow ............. 3.725e-09
 ```
 
-An `.evo` file is a ZIP archive holding a JSON manifest and a NumPy parameter
-archive read with `allow_pickle=False`. Models are rebuilt from registered
-class names, so **loading a model file never executes code from it**.
-
-## CUDA acceleration
-
-CUDA is optional and additive:
-
-```python
-import everyo as eo
-
-eo.cuda.is_available()  # False on a CPU-only machine — not an error
-eo.cuda.unavailable_reason()  # a sentence explaining why
-eo.cuda.runtime_info()  # device names, compute capability, memory
-
-x = eo.tensor([[1.0, 2.0], [3.0, 4.0]], device="cuda")  # falls back to CPU
-```
-
-Build the extension on a machine with an NVIDIA GPU and the CUDA Toolkit:
+**436 tests** run in under 10 seconds on CPU. CUDA tests skip themselves without a GPU;
+TensorFlow tests skip themselves without TensorFlow. The core suite needs no network, no GPU, and no credentials.
 
 ```bash
-pip install -e ".[cuda]"
-./scripts/build_cuda.sh
+pytest                    # 428 passed, 8 skipped
+./scripts/lint.sh         # ruff check + format check
 ```
 
-Kernels implemented in `cuda/src/`: vector addition, element-wise
-multiplication, ReLU, tiled matrix multiplication and a tree-reduction sum. All
-use bounds checking, CUDA error checking and RAII device memory, and their
-output is compared against NumPy in the test suite.
+---
 
-Requesting CUDA without it never crashes; it falls back to the CPU and logs a
-warning. Pass `strict=True` when you would rather have an error than a silent
-fallback. Details in [docs/cuda.md](docs/cuda.md).
+## 🏗 Architecture
 
-CUDA works only on NVIDIA hardware with NVIDIA's toolchain. EveryO does not
-claim otherwise, and the GPU is not automatically faster — per-call host/device
-transfers can dominate at small sizes, which is what the benchmarks are for.
+```
+          everyo.cli              everyo.visualization
+               └──────────┬───────────────┘
+                          │
+      everyo.training  (Trainer · callbacks · history · metrics)
+                          │
+      everyo.optim  (SGD · Adam)      everyo.serialization  (.evo)
+                          │
+      everyo.nn  (Module · layers · activations · losses)
+                          │
+      everyo.core  (Tensor · operations · autograd · device · dtype)
+                          │
+      everyo.backends (numpy · tensorflow)      everyo.cuda
+                          │                          │
+                        NumPy                optional extension
+```
 
-## TensorFlow backend
+Each layer depends only on the ones beneath it. `core` depends on nothing but NumPy.
+The reasoning behind each decision is in **[docs/architecture.md](docs/architecture.md)**.
 
-TensorFlow is optional and plays three specific roles: reference numerics for
-cross-checking EveryO's own kernels, an equivalent Keras model for comparing
-convergence, and a benchmark baseline.
+---
+
+## 🚀 CUDA, without the pain
+
+CUDA is **additive, never required**. On a machine without a GPU everything still runs:
 
 ```python
-from everyo.backends import tensorflow_backend as tfb
-
-tfb.is_available()
-tfb.gpu_available()
-
-keras_model = tfb.build_keras_model(model, input_shape=(64,))
-reference = tfb.train_reference_model(model, features, labels, epochs=20)
+eo.cuda.is_available()  # False — and that is not an error
+eo.device("cuda")  # → device('cpu'), with a logged warning
+eo.device("cuda", strict=True)  # → raises, when you'd rather know
 ```
 
-EveryO is **not** a TensorFlow wrapper: nothing in the core imports TensorFlow,
-and the framework is fully usable without it.
-
-## Visualization
-
-```python
-eo.plot_loss(history, save_path="artifacts/loss.png")
-eo.plot_accuracy(history, save_path="artifacts/accuracy.png")
-eo.plot_history(history, save_path="artifacts/history.png")
-eo.plot_confusion_matrix(predictions, y_test, save_path="artifacts/confusion.png")
-eo.plot_benchmark(results, save_path="artifacts/benchmark.png")
-```
-
-Charts never require a display: on a headless machine EveryO selects the
-non-interactive Agg backend automatically, and every function accepts
-`save_path=` to write a PNG.
-
-## Benchmarks
-
-Benchmarks are measured, never quoted:
+Build the kernels where you do have a GPU:
 
 ```bash
-python benchmarks/benchmark_matmul.py --sizes 128 256 512 1024
-python benchmarks/benchmark_relu.py
+pip install -e ".[cuda]" && ./scripts/build_cuda.sh
+```
+
+Five kernels live in [`cuda/src`](cuda/src): vector add, element-wise multiply, ReLU, a 16×16 tiled matmul and a
+tree-reduction sum — all with bounds checking, CUDA error checking and RAII device memory.
+Details in **[docs/cuda.md](docs/cuda.md)**.
+
+---
+
+## 📈 Benchmarks
+
+Numbers come from *your* machine, never from this README:
+
+```bash
+everyo benchmark --sizes 128 256 512 1024
 python benchmarks/benchmark_training.py --epochs 10
-
-everyo benchmark --sizes 256 512 --output results.json
 ```
 
-Each script warms up before timing, repeats every measurement, records the
-mean, best and worst times, and reports the machine it ran on. Results can be
-exported to JSON or CSV and plotted. This README deliberately contains no
-performance figures: run the scripts and read your own.
+Each run warms up, repeats, records mean/best/worst and reports the hardware it used.
+EveryO is a readable reference implementation — when a tuned runtime beats it, the benchmark will tell you so.
 
-## Examples
+---
+
+## 🗺 Roadmap
+
+Not implemented yet — contributions very welcome on any of these:
+
+- [ ] Convolution and pooling layers
+- [ ] Batch / layer normalization
+- [ ] Recurrent layers, attention, transformer blocks
+- [ ] GPU-resident tensors (removing per-call transfers)
+- [ ] Mixed-precision training
+- [ ] ONNX interoperability · model quantization · profiling tools
+- [ ] Distributed training
+
+---
+
+## 🤝 Contributing
+
+Good first issues are the roadmap items above, and every one of them is self-contained.
 
 ```bash
-python examples/tensor_basics.py             # tensors, broadcasting, autograd
-python examples/linear_regression.py         # a single Linear layer, SGD + momentum
-python examples/binary_classification.py     # two moons: MLP vs a linear model
-python examples/multiclass_classification.py # spirals, with early stopping
-python examples/neural_network.py            # the full pipeline on digits
-python examples/save_and_load.py             # .evo archives
-python examples/tensorflow_backend.py        # cross-checks (needs TensorFlow)
-python examples/cuda_example.py              # CUDA detection and fallback
+./scripts/setup.sh      # venv + dev install
+./scripts/test.sh       # the suite
+./scripts/lint.sh --fix # ruff
 ```
 
-The end-to-end demo is also available from the CLI:
+The rules are short: add a test (gradients need a finite-difference check), keep `ruff check` clean, and make
+sure the core still works with neither CUDA nor TensorFlow installed. Full guide in
+**[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
-```bash
-everyo demo --epochs 15
-```
+---
 
-It builds an 8x8 handwritten-digit-style dataset locally from bitmap glyphs
-(no download), splits it, trains a two-layer network and reports test accuracy.
-See [`examples/`](examples/) for details.
+## 💛 Support this project
 
-## Project structure
+If EveryO helped you understand how autograd actually works:
 
-```
-EveryO/
-├── everyo/
-│   ├── core/            tensor, operations, autograd, device, dtype
-│   ├── nn/              module, layers, activations, losses, initialization
-│   ├── optim/           optimizer, sgd, adam
-│   ├── data/            dataset, dataloader, preprocessing, split
-│   ├── training/        trainer, callbacks, history, metrics
-│   ├── backends/        numpy_backend, tensorflow_backend
-│   ├── serialization/   save, load, format
-│   ├── visualization/   training, metrics, benchmark charts
-│   ├── datasets/        locally generated datasets
-│   ├── cuda/            availability detection and kernel interface
-│   └── cli/             the everyo command
-├── cuda/                .cu kernels, header, pybind11 bindings, CMakeLists
-├── tests/               433 tests
-├── examples/            runnable scripts
-├── benchmarks/          measurement scripts
-├── scripts/             setup, test, lint, benchmark, build_cuda, clean
-├── configs/             example YAML configuration
-└── docs/                architecture, autograd, CUDA, API reference
-```
+⭐ **[Star the repo](https://github.com/krishanth7/EveryO)** — it is the single most useful thing you can do.
+🐛 **[Open an issue](https://github.com/krishanth7/EveryO/issues)** · 🔧 **[Send a PR](CONTRIBUTING.md)** ·
+💬 **Tell one other person who is learning this stuff.**
 
-## Development
+Sponsorship is configured in [`.github/FUNDING.yml`](.github/FUNDING.yml).
 
-```bash
-./scripts/setup.sh          # virtual environment + dev install
-./scripts/test.sh           # the test suite
-./scripts/test.sh --fast    # skip slow tests
-./scripts/lint.sh           # ruff
-./scripts/lint.sh --fix     # ruff with fixes and formatting
-./scripts/benchmark.sh      # every benchmark
-./scripts/build_cuda.sh     # the optional CUDA extension
-./scripts/clean.sh          # caches and build output
-```
+---
 
-Windows users can run the equivalent commands directly
-(`python -m pytest`, `ruff check .`, `python benchmarks/benchmark_matmul.py`);
-the shell scripts target Linux and macOS.
+## 📚 Documentation
 
-Configuration files are supported but never required:
+| | |
+|---|---|
+| [Getting started](docs/getting-started.md) | install, first tensor, first network |
+| [Architecture](docs/architecture.md) | how it is layered, and why |
+| [Autograd](docs/autograd.md) | how the gradient engine works and how it is verified |
+| [CUDA](docs/cuda.md) | building, using and benchmarking the kernels |
+| [API reference](docs/api-reference.md) | the full public surface |
+| [Examples](examples/) | eight runnable scripts |
 
-```python
-from everyo import load_config
+---
 
-config = load_config("configs/default.yaml")
-```
+## 🔒 Security
 
-## Testing
+No API keys. No accounts. No telemetry. No network calls from the core.
+Model loading is pickle-free by design — an `.evo` archive cannot execute code.
+Report vulnerabilities via **[SECURITY.md](SECURITY.md)**.
 
-```bash
-pytest                                  # everything
-pytest -m "not slow"                    # quick pass
-pytest --cov=everyo --cov-report=term   # with coverage
-pytest tests/test_autograd.py -v        # one module
-```
+## 📄 License
 
-What the suite covers:
+[MIT](LICENSE) — use it, fork it, teach with it, ship it.
 
-* numerical results compared against NumPy, and against TensorFlow when it is
-  installed,
-* every gradient compared against central finite differences,
-* layers, losses, optimizer update rules and convergence on problems with
-  known answers,
-* data loading, splitting and preprocessing,
-* serialization round trips, including refusal of malformed archives,
-* CPU fallback when CUDA is absent, and kernel correctness when it is present,
-* the CLI, configuration and full end-to-end pipelines.
-
-CUDA tests skip automatically without a GPU; TensorFlow tests skip without
-TensorFlow. The core suite needs no network access.
-
-## Roadmap
-
-Planned for future releases — **none of this is implemented today**:
-
-* convolutional and pooling layers,
-* batch and layer normalisation,
-* recurrent layers, attention and transformer blocks,
-* GPU-resident tensors, removing per-call host/device transfers,
-* fused and more advanced CUDA kernels,
-* mixed-precision training,
-* automatic device placement,
-* ONNX interoperability,
-* model quantization,
-* profiling tools and graph optimization,
-* distributed training.
-
-## Contributing
-
-Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the
-development setup, branch workflow, coding conventions, how to add operations
-and layers, and the extra care CUDA changes need.
-
-The short version: add tests (gradients need a finite-difference check), keep
-`ruff check .` clean, and make sure the core still works with neither CUDA nor
-TensorFlow installed.
-
-## Security
-
-EveryO needs no API keys, tokens or accounts, makes no network requests from
-the core, and collects no telemetry. Model loading is pickle-free by design.
-To report a vulnerability, see [SECURITY.md](SECURITY.md).
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+<div align="center">
+<br>
+<b>Built to be read.</b><br>
+<sub>If this repo taught you something, a ⭐ helps someone else find it.</sub>
+</div>

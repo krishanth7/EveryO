@@ -237,6 +237,61 @@ class TestCallbacks:
         )
         assert stopper.best_epoch >= 1
 
+    def test_early_stopping_announces_the_weight_restore(self, loaders, capsys):
+        """A silent restore makes post-fit metrics look inconsistent with the log."""
+        train_loader, validation_loader = loaders
+
+        class Plateau(eo.Callback):
+            def on_epoch_end(self, trainer, epoch, logs):
+                logs["val_loss"] = 1.0 if epoch > 1 else 0.1
+
+        build_trainer().fit(
+            train_loader,
+            epochs=10,
+            validation_loader=validation_loader,
+            callbacks=[Plateau(), eo.EarlyStopping(monitor="val_loss", patience=1)],
+            verbose=False,
+        )
+        output = capsys.readouterr().out
+        assert "Early stopping at epoch" in output
+        assert "Restored the best weights from epoch 1" in output
+
+    def test_early_stopping_can_be_quiet(self, loaders, capsys):
+        train_loader, validation_loader = loaders
+
+        class Plateau(eo.Callback):
+            def on_epoch_end(self, trainer, epoch, logs):
+                logs["val_loss"] = 1.0 if epoch > 1 else 0.1
+
+        build_trainer().fit(
+            train_loader,
+            epochs=10,
+            validation_loader=validation_loader,
+            callbacks=[
+                Plateau(),
+                eo.EarlyStopping(monitor="val_loss", patience=1, verbose=False),
+            ],
+            verbose=False,
+        )
+        assert "Early stopping" not in capsys.readouterr().out
+
+    def test_metrics_after_fit_describe_the_restored_model(self, loaders):
+        """evaluate() after an early stop reports the best model, not the last."""
+        train_loader, validation_loader = loaders
+        trainer = build_trainer()
+        stopper = eo.EarlyStopping(monitor="val_loss", patience=2)
+        history = trainer.fit(
+            train_loader,
+            epochs=30,
+            validation_loader=validation_loader,
+            callbacks=[stopper],
+            verbose=False,
+        )
+        if stopper.stopped_epoch:
+            after = trainer.evaluate(validation_loader)["loss"]
+            assert after == pytest.approx(stopper.best, rel=1e-6)
+            assert stopper.best <= history["val_loss"][-1] + 1e-9
+
     def test_checkpoint_writes_a_file(self, loaders, tmp_path):
         train_loader, validation_loader = loaders
         path = tmp_path / "best.evo"
