@@ -1,0 +1,12 @@
+# Default ownership for the EveryO repository.
+# CODEOWNERS requests review; branch protection determines whether that review is required.
+* @krishanth7
+
+# High-impact areas
+/everyo/core/ @krishanth7
+/everyo/nn/ @krishanth7
+/everyo/cuda/ @krishanth7
+/cuda/ @krishanth7
+/.github/ @krishanth7
+/pyproject.toml @krishanth7
+/SECURITY.md @krishanth7
