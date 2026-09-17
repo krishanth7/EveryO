@@ -187,7 +187,7 @@ def build_keras_model(model: Any, input_shape: Sequence[int]) -> Any:
             Keras equivalent.
     """
     tf = require()
-    from everyo.nn.layers import Dropout, Flatten, Linear
+    from everyo.nn.layers import AvgPool2D, Conv2D, Dropout, Flatten, Linear, MaxPool2D
     from everyo.nn.sequential import Sequential
 
     if not isinstance(model, Sequential):
@@ -200,6 +200,34 @@ def build_keras_model(model: Any, input_shape: Sequence[int]) -> Any:
         name = type(layer).__name__
         if isinstance(layer, Linear):
             layers.append(tf.keras.layers.Dense(layer.out_features, use_bias=layer.use_bias))
+        elif isinstance(layer, Conv2D):
+            # EveryO is NHWC, which is Keras's default data format, so the
+            # arguments map across one to one.
+            layers.append(
+                tf.keras.layers.Conv2D(
+                    filters=layer.out_channels,
+                    kernel_size=tuple(layer.kernel_size),
+                    strides=tuple(layer.stride),
+                    padding=layer.padding if isinstance(layer.padding, str) else "valid",
+                    use_bias=layer.use_bias,
+                )
+            )
+        elif isinstance(layer, MaxPool2D):
+            layers.append(
+                tf.keras.layers.MaxPooling2D(
+                    pool_size=tuple(layer.pool_size),
+                    strides=None if layer.stride is None else tuple(layer.stride),
+                    padding=layer.padding if isinstance(layer.padding, str) else "valid",
+                )
+            )
+        elif isinstance(layer, AvgPool2D):
+            layers.append(
+                tf.keras.layers.AveragePooling2D(
+                    pool_size=tuple(layer.pool_size),
+                    strides=None if layer.stride is None else tuple(layer.stride),
+                    padding=layer.padding if isinstance(layer.padding, str) else "valid",
+                )
+            )
         elif isinstance(layer, Flatten):
             layers.append(tf.keras.layers.Flatten())
         elif isinstance(layer, Dropout):
@@ -209,7 +237,8 @@ def build_keras_model(model: Any, input_shape: Sequence[int]) -> Any:
         else:
             raise EveryOBackendError(
                 f"No Keras equivalent is defined for the EveryO layer "
-                f"'{name}'. Supported layers: Linear, Flatten, Dropout, "
+                f"'{name}'. Supported layers: Linear, Conv2D, MaxPool2D, "
+                f"AvgPool2D, Flatten, Dropout, "
                 f"{', '.join(sorted(_ACTIVATION_NAMES))}."
             )
     return tf.keras.Sequential(layers)

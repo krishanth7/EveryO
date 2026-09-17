@@ -34,8 +34,9 @@ def compute_fans(shape: Sequence[int]) -> tuple[int, int]:
     """Return ``(fan_in, fan_out)`` for a parameter of the given shape.
 
     Args:
-        shape: Parameter shape.  A 2-D weight is interpreted as
-            ``(fan_in, fan_out)``, matching EveryO's ``x @ W`` convention.
+        shape: Parameter shape. A 2-D weight is interpreted as
+            ``(fan_in, fan_out)``, matching EveryO's ``x @ W`` convention; a
+            4-D weight is a convolution kernel ``(kh, kw, in, out)``.
 
     Raises:
         EveryOShapeError: If the shape has no dimensions.
@@ -45,6 +46,12 @@ def compute_fans(shape: Sequence[int]) -> tuple[int, int]:
         raise EveryOShapeError("Cannot compute fan-in/fan-out for a 0-dimensional parameter.")
     if len(dims) == 1:
         return dims[0], dims[0]
+    if len(dims) == 4:
+        # A convolution kernel is (kh, kw, in_channels, out_channels): every
+        # output unit sees kh * kw * in_channels inputs, so the receptive field
+        # scales both fans rather than only one.
+        receptive = dims[0] * dims[1]
+        return dims[2] * receptive, dims[3] * receptive
     receptive = int(np.prod(dims[2:])) if len(dims) > 2 else 1
     return dims[0] * receptive, dims[1] * receptive
 

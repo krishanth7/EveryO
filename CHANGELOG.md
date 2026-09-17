@@ -6,6 +6,31 @@ All notable changes to EveryO are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Convolution and pooling layers**, the first roadmap item: `Conv2D`,
+  `MaxPool2D` and `AvgPool2D`, plus the functional `eo.conv2d`,
+  `eo.max_pool2d` and `eo.avg_pool2d`.
+  - Tensors use the `NHWC` layout `(batch, height, width, channels)` and
+    kernels are `(kh, kw, in_channels, out_channels)` — TensorFlow's layout, so
+    results are compared against `tf.nn.conv2d` and `tf.nn.max_pool2d` directly,
+    with no transposing. They agree exactly.
+  - `padding` accepts `"valid"`, `"same"` or an integer. `"same"` reproduces
+    TensorFlow's asymmetric rule; max pooling pads with `-inf` so padding can
+    never win a window, and average pooling divides by the count of real cells
+    so edge windows are not darkened.
+  - Forward passes use im2col, so a convolution is one matrix multiplication;
+    the backward pass is two more plus a scatter-add into the padded image.
+    Gradients with respect to input, kernel and bias are all verified against
+    central finite differences, including strided and `"same"` cases.
+  - `compute_fans` now understands 4-D kernels, so He and Xavier initialisation
+    scale by `kh * kw * in_channels` rather than a wrong fan-in.
+  - The TensorFlow backend maps all three onto their Keras equivalents, and the
+    parameter counts match.
+  - New example: `examples/convolutional_network.py`, which trains a CNN,
+    compares it against a dense baseline of similar size, and visualises the
+    learned filters and feature maps.
+
 ### Fixed
 
 - **Moving a tensor no longer severs the autograd graph.** `.to()`, `.cpu()`,

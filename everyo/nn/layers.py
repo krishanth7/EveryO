@@ -7,12 +7,13 @@ from typing import Any
 import numpy as np
 
 from everyo.core import operations as ops
+from everyo.core.convolution import _pair, avg_pool2d, conv2d, max_pool2d
 from everyo.core.tensor import Tensor, as_tensor
 from everyo.exceptions import EveryOShapeError
 from everyo.nn.initialization import get_initializer, zeros_init
 from everyo.nn.module import Module, Parameter, register_module
 
-__all__ = ["Linear", "Flatten", "Dropout"]
+__all__ = ["Linear", "Flatten", "Dropout", "Conv2D", "MaxPool2D", "AvgPool2D"]
 
 
 @register_module
@@ -148,3 +149,153 @@ class Dropout(Module):
     def get_config(self) -> dict[str, Any]:
         """Constructor arguments needed to rebuild this layer."""
         return {"p": self.p}
+
+
+@register_module
+class Conv2D(Module):
+    """2-D convolution over a batch of images.
+
+    Tensors are ``NHWC``: ``(batch, height, width, channels)``. The learned
+    kernel has shape ``(kernel_h, kernel_w, in_channels, out_channels)``, which
+    is TensorFlow's layout — so results can be, and are, compared against
+    ``tf.nn.conv2d`` directly.
+
+    Args:
+        in_channels: Channels the input carries.
+        out_channels: Number of filters to learn.
+        kernel_size: Int or ``(height, width)``.
+        stride: Int or ``(stride_h, stride_w)``.
+        padding: ``"valid"`` (default), ``"same"``, or an int applied to both
+            sides of both axes.
+        bias: Learn one bias per output channel.
+        initializer: Scheme from :mod:`everyo.nn.initialization`. The default
+            suits the ReLU that usually follows.
+        seed: Makes the initial kernel reproducible.
+
+    Example:
+        >>> import everyo as eo
+        >>> layer = eo.Conv2D(1, 8, 3, padding="same", seed=0)
+        >>> layer(eo.zeros(4, 8, 8, 1)).shape
+        (4, 8, 8, 8)
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: Any = 3,
+        *,
+        stride: Any = 1,
+        padding: Any = "valid",
+        bias: bool = True,
+        initializer: str = "he_uniform",
+        seed: int | None = None,
+    ) -> None:
+        super().__init__()
+        if in_channels <= 0 or out_channels <= 0:
+            raise EveryOShapeError(
+                f"Conv2D requires positive channel counts, got "
+                f"in_channels={in_channels}, out_channels={out_channels}."
+            )
+        self.in_channels = int(in_channels)
+        self.out_channels = int(out_channels)
+        self.kernel_size = _pair(kernel_size, "kernel_size")
+        self.stride = _pair(stride, "stride")
+        self.padding = padding
+        self.use_bias = bool(bias)
+        self.initializer = str(initializer)
+        self.seed = seed
+
+        shape = (*self.kernel_size, self.in_channels, self.out_channels)
+        init_fn = get_initializer(initializer)
+        self.weight = Parameter(
+            np.asarray(init_fn(shape, seed=seed), dtype=np.float32), name="weight"
+        )
+        if self.use_bias:
+            self.bias = Parameter(
+                np.asarray(zeros_init((self.out_channels,)), dtype=np.float32), name="bias"
+            )
+
+    def forward(self, x: Any) -> Tensor:
+        """Convolve ``x`` with the learned kernel."""
+        value = as_tensor(x)
+        if value.ndim == 4 and value.shape[-1] != self.in_channels:
+            raise EveryOShapeError(
+                f"Conv2D(in_channels={self.in_channels}) received an input with "
+                f"shape {value.shape}; the last axis must be {self.in_channels} "
+                f"channel(s), not {value.shape[-1]}."
+            )
+        return conv2d(
+            value,
+            self.weight,
+            self.bias if self.use_bias else None,
+            stride=self.stride,
+            padding=self.padding,
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        """Constructor arguments needed to rebuild this layer."""
+        return {
+            "in_channels": self.in_channels,
+            "out_channels": self.out_channels,
+            "kernel_size": list(self.kernel_size),
+            "stride": list(self.stride),
+            "padding": self.padding,
+            "bias": self.use_bias,
+            "initializer": self.initializer,
+        }
+
+
+class _Pool2D(Module):
+    """Shared plumbing for the pooling layers."""
+
+    def __init__(self, pool_size: Any = 2, *, stride: Any = None, padding: Any = "valid") -> None:
+        super().__init__()
+        self.pool_size = _pair(pool_size, "pool_size")
+        self.stride = None if stride is None else _pair(stride, "stride")
+        self.padding = padding
+
+    def get_config(self) -> dict[str, Any]:
+        """Constructor arguments needed to rebuild this layer."""
+        return {
+            "pool_size": list(self.pool_size),
+            "stride": None if self.stride is None else list(self.stride),
+            "padding": self.padding,
+        }
+
+
+@register_module
+class MaxPool2D(_Pool2D):
+    """Max pooling: keep the strongest activation in each window.
+
+    ``stride`` defaults to ``pool_size``, giving non-overlapping windows that
+    halve the resolution for the usual ``pool_size=2``. The gradient reaches
+    only the winning element of each window.
+
+    Example:
+        >>> import everyo as eo
+        >>> eo.MaxPool2D(2)(eo.zeros(2, 8, 8, 3)).shape
+        (2, 4, 4, 3)
+    """
+
+    def forward(self, x: Any) -> Tensor:
+        """Downsample ``x`` by taking the maximum of each window."""
+        return max_pool2d(x, self.pool_size, stride=self.stride, padding=self.padding)
+
+
+@register_module
+class AvgPool2D(_Pool2D):
+    """Average pooling: keep the mean activation of each window.
+
+    With ``padding="same"`` the mean is taken over real cells only, never over
+    the padding, so edge windows are not darkened.
+
+    Example:
+        >>> import everyo as eo
+        >>> eo.AvgPool2D(2)(eo.ones(1, 4, 4, 1)).item()
+        1.0
+    """
+
+    def forward(self, x: Any) -> Tensor:
+        """Downsample ``x`` by averaging each window."""
+        return avg_pool2d(x, self.pool_size, stride=self.stride, padding=self.padding)
