@@ -54,11 +54,11 @@ print(eo.matmul(x, y))
 Tensors expose the properties you would expect:
 
 ```python
-x.shape    # (1, 2)
-x.ndim     # 2
-x.dtype    # 'float32'
-x.device   # device('cpu')
-x.size     # 2
+x.shape  # (1, 2)
+x.ndim  # 2
+x.dtype  # 'float32'
+x.device  # device('cpu')
+x.size  # 2
 ```
 
 ## Gradients
@@ -71,7 +71,7 @@ x = eo.tensor([2.0], requires_grad=True)
 y = x * x
 y.backward()
 
-print(x.grad)   # [4.]   because d(x^2)/dx = 2x
+print(x.grad)  # [4.]   because d(x^2)/dx = 2x
 ```
 
 Wrap inference in `eo.no_grad()` to skip graph construction entirely:

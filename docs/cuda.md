@@ -20,10 +20,10 @@ degrades gracefully when the hardware or toolchain is absent.
 ```python
 import everyo as eo
 
-eo.cuda.is_available()        # True only with a built extension AND a device
+eo.cuda.is_available()  # True only with a built extension AND a device
 eo.cuda.device_count()
 eo.cuda.unavailable_reason()  # a sentence explaining why, or None
-eo.cuda.runtime_info()        # full details, including device properties
+eo.cuda.runtime_info()  # full details, including device properties
 ```
 
 None of these raise. On a CPU-only machine `everyo doctor` prints the reason.
@@ -48,8 +48,12 @@ cmake --build build/cuda --parallel
 ```
 
 The build copies `_everyo_cuda*.so` next to the Python package so
-`import everyo._everyo_cuda` resolves. To target a specific compute
-capability:
+`import everyo._everyo_cuda` resolves.
+
+A build host without a GPU is fine: the kernels compile and the extension
+imports, EveryO simply reports CUDA as unavailable until it runs on a machine
+with a device. `scripts/build_cuda.sh` says so explicitly rather than treating
+it as a failure. To target a specific compute capability:
 
 ```bash
 ./scripts/build_cuda.sh --arch=86
@@ -65,7 +69,7 @@ import everyo as eo
 x = eo.tensor([[1.0, 2.0], [3.0, 4.0]], device="cuda")
 y = eo.tensor([[5.0, 6.0], [7.0, 8.0]], device="cuda")
 
-z = eo.matmul(x, y)     # runs the tiled CUDA kernel when available
+z = eo.matmul(x, y)  # runs the tiled CUDA kernel when available
 ```
 
 `eo.device("auto")` picks CUDA when it is usable and CPU otherwise.

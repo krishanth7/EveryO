@@ -42,8 +42,7 @@ for node in topological_order(root):
     incoming = gradients.get(id(node))
     if node.requires_grad and (node.is_leaf or node.retains_grad):
         node.accumulate_grad(incoming)
-    for parent, parent_grad in zip(node.grad_node.parents,
-                                   node.grad_node.backward_fn(incoming)):
+    for parent, parent_grad in zip(node.grad_node.parents, node.grad_node.backward_fn(incoming)):
         gradients[id(parent)] = gradients.get(id(parent), 0) + parent_grad
 ```
 
@@ -72,14 +71,14 @@ Intermediate tensors do not retain `.grad`, which keeps memory bounded. Call
 ```python
 hidden = (x * 3).retain_grad()
 (hidden * 2).backward()
-print(hidden.grad)   # [2.]
+print(hidden.grad)  # [2.]
 ```
 
 ## Turning it off
 
 ```python
 with eo.no_grad():
-    predictions = model(features)     # no graph is built
+    predictions = model(features)  # no graph is built
 ```
 
 `no_grad` is thread-local, works as a decorator, and restores the previous mode

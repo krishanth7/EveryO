@@ -84,7 +84,7 @@ The first release: a working foundation rather than a complete framework.
   blobs, moons, spirals and XOR generators. No downloads, no API keys.
 - Benchmark scripts measuring matmul, ReLU and full training across the
   available backends, with JSON/CSV export.
-- 405 tests covering numerics, gradients, layers, losses, optimizers, data,
+- 407 tests covering numerics, gradients, layers, losses, optimizers, data,
   training, serialisation, devices, visualization, the CLI and end-to-end
   pipelines.
 - Optional JSON/YAML configuration, an exception hierarchy with actionable

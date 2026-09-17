@@ -11,10 +11,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
 cd "${PROJECT_ROOT}"
 
-if ! command -v ruff >/dev/null 2>&1; then
-  echo "error: ruff was not found on PATH." >&2
-  echo "Install it with: pip install -e '.[dev]'" >&2
-  exit 1
+# Invoke ruff through the active interpreter rather than whatever binary is
+# first on PATH: the project pins an exact ruff version, and a stray global
+# install of a different version formats differently from CI.
+RUFF=(python -m ruff)
+if ! "${RUFF[@]}" --version >/dev/null 2>&1; then
+  if command -v ruff >/dev/null 2>&1; then
+    RUFF=(ruff)
+    echo "warning: using the ruff on PATH ($(ruff --version)); the pinned" >&2
+    echo "         version is installed with: pip install -e '.[dev]'" >&2
+  else
+    echo "error: ruff is not installed in the active environment." >&2
+    echo "Install it with: pip install -e '.[dev]'" >&2
+    exit 1
+  fi
 fi
 
 FIX=0
@@ -33,10 +43,11 @@ for argument in "$@"; do
 done
 
 if [[ "${FIX}" -eq 1 ]]; then
-  ruff check --fix .
-  ruff format .
+  "${RUFF[@]}" check --fix .
+  "${RUFF[@]}" format .
 else
-  ruff check .
+  "${RUFF[@]}" check .
+  "${RUFF[@]}" format --check .
 fi
 
 echo "Compiling every module as a final syntax check"

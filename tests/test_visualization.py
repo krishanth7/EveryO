@@ -81,6 +81,61 @@ class TestTrainingCharts:
             eo.plot_loss(["not", "a", "history"])
 
 
+class TestBackendSelection:
+    """The chart backend must survive an interactive backend that cannot draw.
+
+    A backend can import cleanly and still fail when a figure is created — a
+    Windows runner with a broken Tcl installation does exactly that. EveryO
+    must notice and fall back to Agg rather than propagating the failure.
+    """
+
+    def test_falls_back_when_the_backend_cannot_create_a_figure(self, monkeypatch, tmp_path):
+        import matplotlib
+
+        from everyo.visualization import _backend
+
+        original_backend = matplotlib.get_backend()
+        plt = _backend.get_pyplot()
+        original_figure = plt.figure
+
+        # Pretend a display exists so the pre-import check does not fire, and
+        # reset the one-time verification so it runs again for this test.
+        monkeypatch.setattr(_backend, "_no_display", lambda: False)
+        monkeypatch.setattr(_backend, "_VERIFIED", False)
+        monkeypatch.setattr(_backend, "_HEADLESS", False)
+
+        attempts = {"count": 0}
+
+        def sometimes_broken(*args, **kwargs):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise RuntimeError("Can't find a usable init.tcl (simulated)")
+            return original_figure(*args, **kwargs)
+
+        monkeypatch.setattr(plt, "figure", sometimes_broken)
+
+        try:
+            recovered = _backend.get_pyplot()
+            assert _backend.using_headless_backend()
+            assert matplotlib.get_backend().lower() == "agg"
+
+            # And charts must still be produced after the fallback.
+            monkeypatch.setattr(plt, "figure", original_figure)
+            history = eo.History()
+            history.append(epoch=1, loss=1.0)
+            history.append(epoch=2, loss=0.5)
+            path = tmp_path / "after_fallback.png"
+            recovered.close(eo.plot_loss(history, save_path=path))
+            assert path.is_file() and path.stat().st_size > 0
+        finally:
+            matplotlib.use(original_backend, force=True)
+
+    def test_is_available(self):
+        from everyo.visualization import _backend
+
+        assert _backend.is_available() is True
+
+
 class TestMetricCharts:
     def test_confusion_matrix_chart(self, tmp_path):
         predictions = np.array([0, 1, 2, 1, 0])

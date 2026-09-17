@@ -38,7 +38,7 @@ aims at the space between:
   the way it is.
 * **Actually correct.** Every gradient is verified against finite differences,
   and operations are compared against NumPy and (when installed) TensorFlow.
-  405 tests run in about 13 seconds on CPU (8 of them skip without a GPU).
+  407 tests run in about 12 seconds on CPU (8 of them skip without a GPU).
 * **Honest about limits.** Nothing here is a placeholder. Features are marked
   Available, Experimental or Planned, and benchmark numbers come from runs on
   your own machine, never from this README.
@@ -167,7 +167,7 @@ x = eo.tensor([2.0], requires_grad=True)
 y = x * x
 y.backward()
 
-print(x.grad)   # [4.]
+print(x.grad)  # [4.]
 ```
 
 A network, trained:
@@ -210,19 +210,19 @@ x = eo.tensor([[1.0, 2.0], [3.0, 4.0]])
 
 x.shape, x.ndim, x.dtype, x.device, x.size
 
-x + 10            # broadcasting against a scalar
-x * x             # element-wise
-eo.matmul(x, x)   # matrix product, also x @ x
+x + 10  # broadcasting against a scalar
+x * x  # element-wise
+eo.matmul(x, x)  # matrix product, also x @ x
 
-eo.sum(x)                 # 10.0
-eo.mean(x, axis=0)        # column means
-eo.max(x, axis=1)         # row maxima
+eo.sum(x)  # 10.0
+eo.mean(x, axis=0)  # column means
+eo.max(x, axis=1)  # row maxima
 
 x.reshape(4, 1)
 x.T
 eo.flatten(x)
 
-eo.normal((2, 3), seed=0)     # reproducible random tensors
+eo.normal((2, 3), seed=0)  # reproducible random tensors
 eo.zeros(2, 3), eo.ones(2, 3), eo.eye(3)
 ```
 
@@ -254,6 +254,7 @@ Or write your own module:
 
 ```python
 from everyo.nn import Module, register_module
+
 
 @register_module
 class Residual(Module):
@@ -321,11 +322,11 @@ CUDA is optional and additive:
 ```python
 import everyo as eo
 
-eo.cuda.is_available()        # False on a CPU-only machine — not an error
+eo.cuda.is_available()  # False on a CPU-only machine — not an error
 eo.cuda.unavailable_reason()  # a sentence explaining why
-eo.cuda.runtime_info()        # device names, compute capability, memory
+eo.cuda.runtime_info()  # device names, compute capability, memory
 
-x = eo.tensor([[1.0, 2.0], [3.0, 4.0]], device="cuda")   # falls back to CPU
+x = eo.tensor([[1.0, 2.0], [3.0, 4.0]], device="cuda")  # falls back to CPU
 ```
 
 Build the extension on a machine with an NVIDIA GPU and the CUDA Toolkit:
@@ -438,7 +439,7 @@ EveryO/
 │   ├── cuda/            availability detection and kernel interface
 │   └── cli/             the everyo command
 ├── cuda/                .cu kernels, header, pybind11 bindings, CMakeLists
-├── tests/               405 tests
+├── tests/               407 tests
 ├── examples/            runnable scripts
 ├── benchmarks/          measurement scripts
 ├── scripts/             setup, test, lint, benchmark, build_cuda, clean
@@ -467,6 +468,7 @@ Configuration files are supported but never required:
 
 ```python
 from everyo import load_config
+
 config = load_config("configs/default.yaml")
 ```
 

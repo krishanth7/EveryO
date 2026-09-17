@@ -74,12 +74,23 @@ echo "Building"
 cmake --build "${BUILD_DIR}" --parallel
 
 echo
-echo "Verifying the extension loads"
+echo "Verifying the extension imports"
+if ! python -c 'import everyo._everyo_cuda' 2>/dev/null; then
+  echo "error: the extension was built but cannot be imported." >&2
+  python -c 'import everyo._everyo_cuda' || true
+  echo "Check that the .so landed next to the everyo package." >&2
+  exit 1
+fi
+
+echo "CUDA extension built and imported successfully."
 if python -c 'import everyo; raise SystemExit(0 if everyo.cuda.is_available() else 1)'; then
   python -c 'import everyo, json; print(json.dumps(everyo.cuda.runtime_info(), indent=2, default=str))'
-  echo "CUDA extension built successfully."
+  echo "A CUDA device is present: run 'pytest tests/test_devices.py -v' to check the kernels."
 else
-  echo "The extension was built but CUDA is still reported as unavailable." >&2
-  python -c 'import everyo; print(everyo.cuda.unavailable_reason())' >&2
-  exit 1
+  # Building on a machine without a GPU is a normal and supported case, for
+  # example a build host separate from the machine that will run the kernels.
+  echo
+  echo "Note: no usable CUDA device is present on this machine, so the kernels"
+  echo "      cannot be executed here and EveryO will keep using the CPU:"
+  python -c 'import everyo; print("      " + str(everyo.cuda.unavailable_reason()))'
 fi

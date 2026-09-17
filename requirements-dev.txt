@@ -4,7 +4,7 @@
 
 pytest>=7.0
 pytest-cov>=4.0
-ruff>=0.4
+ruff==0.16.8  # pinned: formatter output is version-sensitive
 PyYAML>=6.0
 
 # Optional backends. Neither is required to run the core test suite.

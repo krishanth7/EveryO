@@ -30,11 +30,15 @@ jobs:
           python-version: "3.12"
 
       - name: Install the CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2.19
-        with:
-          cuda: "12.4.1"
-          method: network
-          sub-packages: '["nvcc", "cudart", "cudart-dev"]'
+        # Installed from Ubuntu's own archive rather than a pinned NVIDIA
+        # release: specific CUDA point releases are withdrawn from NVIDIA's
+        # per-distribution repositories over time, which breaks a pinned
+        # version the moment the runner image moves to a newer Ubuntu. The
+        # distribution package name is stable.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nvidia-cuda-toolkit
+          nvcc --version
 
       - name: Install build dependencies
         run: python -m pip install --upgrade pip pybind11 setuptools
@@ -47,7 +51,17 @@ jobs:
       - name: Build
         run: cmake --build build/cuda --parallel
 
+      - name: Verify the extension imports
+        # The kernels cannot run here, but the module must load and EveryO
+        # must report CUDA as unavailable rather than crashing.
+        run: |
+          python -m pip install -e .
+          python -c "import everyo._everyo_cuda as ext; print('device_count:', ext.device_count())"
+          python -c "import everyo; assert everyo.cuda.is_available() is False; print(everyo.cuda.unavailable_reason())"
+          python -c "import everyo as eo; print(eo.matmul(eo.tensor([[1.0,2.0]], device='cuda'), eo.tensor([[3.0],[4.0]])))"
+
       - name: Report
         run: |
-          echo "The CUDA extension compiled successfully."
-          echo "It cannot be executed here: GitHub hosted runners have no NVIDIA GPU."
+          echo "The CUDA extension compiled and imported successfully."
+          echo "The kernels were NOT executed: GitHub hosted runners have no NVIDIA GPU."
+          echo "Kernel correctness is covered by tests/test_devices.py on a machine with one."

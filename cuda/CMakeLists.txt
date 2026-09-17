@@ -47,7 +47,11 @@ if(NOT pybind11_FOUND)
   find_package(pybind11 CONFIG REQUIRED PATHS "${PYBIND11_CMAKE_DIR}")
 endif()
 
-pybind11_add_module(_everyo_cuda
+# NO_EXTRAS disables the link-time optimisation pybind11 enables by default.
+# LTO bytecode produced by nvcc's bundled host compiler is not interchangeable
+# with the host compiler's own, and mixing them fails at link time with
+# "bytecode stream generated with LTO version X instead of the expected Y".
+pybind11_add_module(_everyo_cuda NO_EXTRAS
   bindings/bindings.cpp
   src/device.cu
   src/vector_add.cu
@@ -63,9 +67,13 @@ target_include_directories(_everyo_cuda PRIVATE
 
 target_link_libraries(_everyo_cuda PRIVATE CUDA::cudart)
 
+# Separable compilation is deliberately off: every kernel is self-contained
+# within its translation unit, so the extra device-link step would only add
+# build time and another chance for a toolchain mismatch.
 set_target_properties(_everyo_cuda PROPERTIES
-  CUDA_SEPARABLE_COMPILATION ON
+  CUDA_SEPARABLE_COMPILATION OFF
   POSITION_INDEPENDENT_CODE ON
+  INTERPROCEDURAL_OPTIMIZATION OFF
 )
 
 # Install next to the Python package so the import path resolves.
