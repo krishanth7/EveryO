@@ -328,11 +328,22 @@ Sponsorship is configured in [`.github/FUNDING.yml`](.github/FUNDING.yml).
 
 ---
 
+## 🧭 Community and project policies
+
+| Resource | Purpose |
+|---|---|
+| [Contributing guide](CONTRIBUTING.md) | development setup, tests and pull requests |
+| [Repository rules](REPOSITORY_RULES.md) | participation and technical submission standards |
+| [Governance](GOVERNANCE.md) | roles, decisions and releases |
+| [Support](SUPPORT.md) | where and how to request help |
+| [Code of Conduct](CODE_OF_CONDUCT.md) | community behavior |
+| [Project policy](PROJECT_POLICY.md) | use, contribution, branding and promotion terms |
+
 ## 🔒 Security
 
 No API keys. No accounts. No telemetry. No network calls from the core.
 Model loading is pickle-free by design — an `.evo` archive cannot execute code.
-Report vulnerabilities via **[SECURITY.md](SECURITY.md)**.
+Report vulnerabilities privately through **[SECURITY.md](SECURITY.md)**.
 
 ## 📄 License
 
