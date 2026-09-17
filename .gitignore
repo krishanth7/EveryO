@@ -1,0 +1,70 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+pip-wheel-metadata/
+
+# Compiled extensions and CUDA build output
+*.so
+*.pyd
+*.dll
+*.dylib
+*.o
+*.obj
+everyo/_everyo_cuda*
+build/cuda/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Generated artefacts (models, charts, benchmark output)
+*.evo
+artifacts/
+outputs/
+benchmark_results/
+*.png
+!docs/assets/*.png
+
+# Secrets and local environment. EveryO needs no credentials at all, but these
+# entries keep an accidental commit from ever happening.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials.json
+secrets.json
+.netrc
+*.token
+
+# Editors and OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

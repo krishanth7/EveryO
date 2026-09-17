@@ -1,0 +1,277 @@
+"""EveryO: an open-source neural computing and experimentation framework.
+
+EveryO builds, trains, evaluates and inspects neural networks across CPU and
+GPU environments.  The CPU path is implemented from scratch on NumPy and is
+always available; TensorFlow and CUDA are optional accelerators and reference
+implementations.
+
+Quick start:
+    >>> import everyo as eo
+    >>> x = eo.tensor([[1.0, 2.0]])
+    >>> y = eo.tensor([[3.0], [4.0]])
+    >>> eo.matmul(x, y).item()
+    11.0
+"""
+
+from __future__ import annotations
+
+from everyo import backends, cuda, datasets, visualization
+from everyo._logging import configure_logging, get_logger
+from everyo.config import Config, DeviceConfig, ModelConfig, TrainingConfig, load_config
+from everyo.core.autograd import enable_grad, no_grad, set_grad_enabled
+from everyo.core.device import Device, device
+from everyo.core.dtype import DTYPES, dtype_name
+from everyo.core.operations import (
+    abs,
+    add,
+    arange,
+    clip,
+    concatenate,
+    divide,
+    dot,
+    exp,
+    eye,
+    flatten,
+    full,
+    linspace,
+    log,
+    log_softmax,
+    matmul,
+    max,
+    mean,
+    min,
+    multiply,
+    negative,
+    normal,
+    one_hot,
+    ones,
+    ones_like,
+    power,
+    rand,
+    randn,
+    relu,
+    reshape,
+    sigmoid,
+    softmax,
+    sqrt,
+    stack,
+    subtract,
+    sum,
+    tanh,
+    transpose,
+    uniform,
+    variance,
+    zeros,
+    zeros_like,
+)
+from everyo.core.tensor import Tensor, as_tensor, is_tensor, tensor
+from everyo.data import (
+    ArrayDataset,
+    DataLoader,
+    Dataset,
+    MinMaxScaler,
+    StandardScaler,
+    Subset,
+    TransformDataset,
+    load_csv_dataset,
+    one_hot_encode,
+    random_split,
+    standardize,
+    stratified_split,
+    train_test_split,
+)
+from everyo.exceptions import (
+    EveryOBackendError,
+    EveryOConfigurationError,
+    EveryOCudaError,
+    EveryODeviceError,
+    EveryODTypeError,
+    EveryOError,
+    EveryOGradientError,
+    EveryOSerializationError,
+    EveryOShapeError,
+)
+from everyo.nn import (
+    BCELoss,
+    BCEWithLogitsLoss,
+    CrossEntropyLoss,
+    Dropout,
+    Flatten,
+    Linear,
+    LogSoftmax,
+    Loss,
+    MAELoss,
+    Module,
+    MSELoss,
+    Parameter,
+    ReLU,
+    Sequential,
+    Sigmoid,
+    Softmax,
+    Tanh,
+)
+from everyo.optim import SGD, Adam, Optimizer
+from everyo.serialization import inspect_archive, load, save
+from everyo.training import (
+    Callback,
+    CSVLogger,
+    EarlyStopping,
+    History,
+    LearningRateScheduler,
+    ModelCheckpoint,
+    ProgressLogger,
+    Trainer,
+    accuracy,
+    confusion_matrix,
+)
+from everyo.version import VERSION_INFO, __version__
+from everyo.visualization import (
+    plot_accuracy,
+    plot_benchmark,
+    plot_confusion_matrix,
+    plot_history,
+    plot_loss,
+    plot_predictions,
+)
+
+__all__ = [
+    # metadata
+    "VERSION_INFO",
+    "__version__",
+    # sub-packages
+    "backends",
+    "cuda",
+    "datasets",
+    "visualization",
+    # core
+    "DTYPES",
+    "Device",
+    "Tensor",
+    "as_tensor",
+    "device",
+    "dtype_name",
+    "enable_grad",
+    "is_tensor",
+    "no_grad",
+    "set_grad_enabled",
+    "tensor",
+    # operations
+    "abs",
+    "add",
+    "arange",
+    "clip",
+    "concatenate",
+    "divide",
+    "dot",
+    "exp",
+    "eye",
+    "flatten",
+    "full",
+    "linspace",
+    "log",
+    "log_softmax",
+    "matmul",
+    "max",
+    "mean",
+    "min",
+    "multiply",
+    "negative",
+    "normal",
+    "one_hot",
+    "ones",
+    "ones_like",
+    "power",
+    "rand",
+    "randn",
+    "relu",
+    "reshape",
+    "sigmoid",
+    "softmax",
+    "sqrt",
+    "stack",
+    "subtract",
+    "sum",
+    "tanh",
+    "transpose",
+    "uniform",
+    "variance",
+    "zeros",
+    "zeros_like",
+    # neural networks
+    "BCELoss",
+    "BCEWithLogitsLoss",
+    "CrossEntropyLoss",
+    "Dropout",
+    "Flatten",
+    "Linear",
+    "LogSoftmax",
+    "Loss",
+    "MAELoss",
+    "MSELoss",
+    "Module",
+    "Parameter",
+    "ReLU",
+    "Sequential",
+    "Sigmoid",
+    "Softmax",
+    "Tanh",
+    # optimizers
+    "Adam",
+    "Optimizer",
+    "SGD",
+    # data
+    "ArrayDataset",
+    "DataLoader",
+    "Dataset",
+    "MinMaxScaler",
+    "StandardScaler",
+    "Subset",
+    "TransformDataset",
+    "load_csv_dataset",
+    "one_hot_encode",
+    "random_split",
+    "standardize",
+    "stratified_split",
+    "train_test_split",
+    # training
+    "CSVLogger",
+    "Callback",
+    "EarlyStopping",
+    "History",
+    "LearningRateScheduler",
+    "ModelCheckpoint",
+    "ProgressLogger",
+    "Trainer",
+    "accuracy",
+    "confusion_matrix",
+    # serialization
+    "inspect_archive",
+    "load",
+    "save",
+    # visualization
+    "plot_accuracy",
+    "plot_benchmark",
+    "plot_confusion_matrix",
+    "plot_history",
+    "plot_loss",
+    "plot_predictions",
+    # configuration
+    "Config",
+    "DeviceConfig",
+    "ModelConfig",
+    "TrainingConfig",
+    "load_config",
+    # logging
+    "configure_logging",
+    "get_logger",
+    # exceptions
+    "EveryOBackendError",
+    "EveryOConfigurationError",
+    "EveryOCudaError",
+    "EveryODTypeError",
+    "EveryODeviceError",
+    "EveryOError",
+    "EveryOGradientError",
+    "EveryOSerializationError",
+    "EveryOShapeError",
+]

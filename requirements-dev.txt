@@ -1,0 +1,12 @@
+# Development dependencies. Install with:
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+
+pytest>=7.0
+pytest-cov>=4.0
+ruff==0.16.8  # pinned: formatter output is version-sensitive
+PyYAML>=6.0
+
+# Optional backends. Neither is required to run the core test suite.
+# tensorflow>=2.12
+# pybind11>=2.11
