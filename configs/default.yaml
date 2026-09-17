@@ -1,0 +1,25 @@
+# Example EveryO configuration.
+#
+# Configuration files are entirely optional: everything below can be passed
+# directly to the Python API. They exist so that experiments can be described
+# in version control instead of in argument lists.
+#
+#   from everyo import load_config
+#   config = load_config("configs/default.yaml")
+
+model:
+  input_size: 64      # 8x8 digit images, flattened
+  hidden_size: 64
+  output_size: 10     # digits 0-9
+  dropout: 0.0
+
+training:
+  epochs: 20
+  batch_size: 32
+  learning_rate: 0.01
+  optimizer: adam     # "adam" or "sgd"
+  validation_split: 0.2
+  seed: 0
+
+device:
+  preferred: auto     # "auto", "cpu" or "cuda"

@@ -1,0 +1,53 @@
+name: cuda-build
+
+# Compile-checks the CUDA sources. GitHub's hosted runners have no NVIDIA GPU,
+# so this workflow verifies that the kernels COMPILE; it cannot run them.
+# Kernel correctness is checked by tests/test_devices.py on machines with a GPU.
+
+on:
+  push:
+    paths:
+      - "cuda/**"
+      - ".github/workflows/cuda-build.yml"
+  pull_request:
+    paths:
+      - "cuda/**"
+      - ".github/workflows/cuda-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: nvcc compile check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        with:
+          cuda: "12.4.1"
+          method: network
+          sub-packages: '["nvcc", "cudart", "cudart-dev"]'
+
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip pybind11 setuptools
+
+      - name: Configure
+        # No GPU is present, so the architecture cannot be detected: target a
+        # common one explicitly.
+        run: cmake -S cuda -B build/cuda -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=75
+
+      - name: Build
+        run: cmake --build build/cuda --parallel
+
+      - name: Report
+        run: |
+          echo "The CUDA extension compiled successfully."
+          echo "It cannot be executed here: GitHub hosted runners have no NVIDIA GPU."

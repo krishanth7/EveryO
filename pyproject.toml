@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "everyo"
+version = "0.1.0"
+description = "Open-source neural computing and experimentation framework with NumPy, TensorFlow and optional CUDA acceleration."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+keywords = [
+    "machine-learning",
+    "deep-learning",
+    "neural-networks",
+    "autograd",
+    "numpy",
+    "tensorflow",
+    "cuda",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.22",
+    "matplotlib>=3.5",
+]
+
+[project.optional-dependencies]
+tensorflow = ["tensorflow>=2.12"]
+yaml = ["PyYAML>=6.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "PyYAML>=6.0",
+]
+cuda = ["pybind11>=2.11"]
+
+[project.scripts]
+everyo = "everyo.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/krishanth7/EveryO"
+Repository = "https://github.com/krishanth7/EveryO"
+Issues = "https://github.com/krishanth7/EveryO/issues"
+Changelog = "https://github.com/krishanth7/EveryO/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+include = ["everyo*"]
+
+[tool.setuptools.package-data]
+everyo = ["py.typed"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "cuda: requires a working EveryO CUDA extension",
+    "tensorflow: requires TensorFlow",
+    "slow: takes more than a couple of seconds",
+]
+filterwarnings = ["error::RuntimeWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RET"]
+ignore = [
+    "E501",    # long lines are handled by the formatter, not the linter
+    "B008",    # function calls in argument defaults are used deliberately
+    "SIM108",  # ternaries are not always clearer than if/else
+    "UP006",   # typing.Tuple etc. still needed on Python 3.9
+    "UP035",
+    "UP007",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"everyo/core/operations.py" = ["A001", "A002"]
+"everyo/__init__.py" = ["F401"]
+"everyo/*/__init__.py" = ["F401"]
+"tests/*" = ["B011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["everyo"]

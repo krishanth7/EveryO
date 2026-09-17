@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest a capability EveryO should gain.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the use case rather than the implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: How would it look from a user's point of view?
+      render: python
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core tensors and autograd
+        - Neural network layers
+        - Optimizers
+        - Data loading
+        - Training loop
+        - CUDA / GPU
+        - TensorFlow backend
+        - Visualization
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: roadmap
+    attributes:
+      label: Roadmap
+      options:
+        - label: I have checked the roadmap in README.md and this is not already listed.
