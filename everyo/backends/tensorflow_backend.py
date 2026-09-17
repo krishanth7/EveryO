@@ -187,7 +187,10 @@ def build_keras_model(model: Any, input_shape: Sequence[int]) -> Any:
             Keras equivalent.
     """
     tf = require()
+    from everyo.nn.embedding import Embedding
     from everyo.nn.layers import AvgPool2D, Conv2D, Dropout, Flatten, Linear, MaxPool2D
+    from everyo.nn.normalization import BatchNorm1D, BatchNorm2D, LayerNorm
+    from everyo.nn.recurrent import GRU, LSTM, RNN
     from everyo.nn.sequential import Sequential
 
     if not isinstance(model, Sequential):
@@ -228,6 +231,49 @@ def build_keras_model(model: Any, input_shape: Sequence[int]) -> Any:
                     padding=layer.padding if isinstance(layer.padding, str) else "valid",
                 )
             )
+        elif isinstance(layer, LayerNorm):
+            layers.append(
+                tf.keras.layers.LayerNormalization(
+                    epsilon=layer.eps, center=layer.affine, scale=layer.affine
+                )
+            )
+        elif isinstance(layer, (BatchNorm1D, BatchNorm2D)):
+            layers.append(
+                tf.keras.layers.BatchNormalization(
+                    epsilon=layer.eps,
+                    momentum=1.0 - layer.momentum,
+                    center=layer.affine,
+                    scale=layer.affine,
+                )
+            )
+        elif isinstance(layer, Embedding):
+            layers.append(tf.keras.layers.Embedding(layer.num_embeddings, layer.embedding_dim))
+        elif isinstance(layer, LSTM):
+            layers.append(
+                tf.keras.layers.LSTM(
+                    layer.hidden_size,
+                    use_bias=layer.use_bias,
+                    return_sequences=layer.return_sequences,
+                    unit_forget_bias=layer.unit_forget_bias,
+                )
+            )
+        elif isinstance(layer, GRU):
+            layers.append(
+                tf.keras.layers.GRU(
+                    layer.hidden_size,
+                    use_bias=layer.use_bias,
+                    return_sequences=layer.return_sequences,
+                    reset_after=False,
+                )
+            )
+        elif isinstance(layer, RNN):
+            layers.append(
+                tf.keras.layers.SimpleRNN(
+                    layer.hidden_size,
+                    use_bias=layer.use_bias,
+                    return_sequences=layer.return_sequences,
+                )
+            )
         elif isinstance(layer, Flatten):
             layers.append(tf.keras.layers.Flatten())
         elif isinstance(layer, Dropout):
@@ -238,7 +284,8 @@ def build_keras_model(model: Any, input_shape: Sequence[int]) -> Any:
             raise EveryOBackendError(
                 f"No Keras equivalent is defined for the EveryO layer "
                 f"'{name}'. Supported layers: Linear, Conv2D, MaxPool2D, "
-                f"AvgPool2D, Flatten, Dropout, "
+                f"AvgPool2D, LayerNorm, BatchNorm1D, BatchNorm2D, Embedding, "
+                f"RNN, LSTM, GRU, Flatten, Dropout, "
                 f"{', '.join(sorted(_ACTIVATION_NAMES))}."
             )
     return tf.keras.Sequential(layers)

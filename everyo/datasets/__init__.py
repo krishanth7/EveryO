@@ -13,6 +13,7 @@ from everyo.datasets.glyphs import (
     load_digits,
     render_digit,
 )
+from everyo.datasets.sequences import make_copy_task, make_parity_task, make_recall_task
 from everyo.datasets.synthetic import (
     make_blobs,
     make_moons,
@@ -27,7 +28,10 @@ __all__ = [
     "NUM_CLASSES",
     "load_digits",
     "make_blobs",
+    "make_copy_task",
     "make_moons",
+    "make_parity_task",
+    "make_recall_task",
     "make_regression",
     "make_spirals",
     "make_xor",

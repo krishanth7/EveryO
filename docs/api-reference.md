@@ -61,11 +61,23 @@ context managers or decorators.
 | `eo.Conv2D(in_channels, out_channels, kernel_size, *, stride, padding, bias, initializer, seed)` | 2-D convolution over `NHWC` images |
 | `eo.MaxPool2D(pool_size, *, stride, padding)` | Max pooling |
 | `eo.AvgPool2D(pool_size, *, stride, padding)` | Average pooling |
+| `eo.Embedding(num_embeddings, embedding_dim, *, initializer, seed)` | Learned id-to-vector lookup |
+| `eo.BatchNorm1D(num_features, ...)` / `eo.BatchNorm2D(...)` | Normalise per feature across the batch |
+| `eo.LayerNorm(normalized_shape, ...)` | Normalise each sample across its own features |
+| `eo.RNN` / `eo.LSTM` / `eo.GRU` `(input_size, hidden_size, *, return_sequences, ...)` | Recurrent layers over `(batch, time, features)` |
+| `eo.MultiHeadAttention(embed_dim, num_heads, *, dropout, bias, seed)` | Self- or cross-attention |
+| `eo.PositionalEncoding(embed_dim, *, max_length, dropout)` | Fixed sinusoidal positions |
+| `eo.TransformerEncoderBlock(embed_dim, num_heads, ...)` | Attention + feed-forward with residuals |
+| `eo.TransformerEncoder(embed_dim, num_heads, *, num_layers, ...)` | A stack of encoder blocks |
 | `eo.Flatten(start_dim=1)` | Collapse trailing dimensions |
 | `eo.Dropout(p, *, seed)` | Inverted dropout |
 | `eo.ReLU`, `eo.Sigmoid`, `eo.Tanh`, `eo.Softmax`, `eo.LogSoftmax` | Activation modules |
 
+Attention helpers: `eo.scaled_dot_product_attention(q, k, v, *, mask, dropout)`,
+`eo.causal_mask(size)`, `eo.padding_mask(lengths, size)`.
+
 Module methods: `parameters()`, `named_parameters()`, `named_modules()`,
+`register_buffer()`, `named_buffers()`, `buffers()`,
 `num_parameters()`, `zero_grad()`, `train()`, `eval()`, `to(device)`,
 `state_dict()`, `load_state_dict()`, `get_config()`, `summary()`.
 

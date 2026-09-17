@@ -125,6 +125,38 @@ model = eo.Sequential(
 Tensors are `NHWC`, the same layout TensorFlow uses — so the forward pass is compared against
 `tf.nn.conv2d` **bit for bit** in the test suite, and every gradient against finite differences.
 
+### Attention and transformers
+
+The same engine runs a transformer. Four attention heads inside an EveryO `TransformerEncoder`,
+each having learned its own routing pattern, on a task where the label is the *first* of 24
+tokens — solvable only by carrying information across the whole sequence:
+
+<div align="center">
+<img src="docs/assets/attention-heads.png" alt="Four attention heads and their learned routing patterns" width="100%">
+</div>
+
+```python
+class Classifier(eo.Module):
+    def __init__(self):
+        super().__init__()
+        self.embedding = eo.Embedding(vocab_size, 32)
+        self.positional = eo.PositionalEncoding(32)
+        self.encoder = eo.TransformerEncoder(32, num_heads=4, num_layers=2)
+        self.head = eo.Linear(32, num_classes)
+
+    def forward(self, ids):
+        hidden = self.encoder(self.positional(self.embedding(ids)))
+        return self.head(eo.mean(hidden, axis=1))
+```
+
+`RNN`, `LSTM` and `GRU` are here too — and the LSTM's advantage is measured, not asserted.
+Gradient reaching the first of 40 timesteps:
+
+```
+RNN   1.38e-11
+LSTM  7.71e-06     ~560,000x larger
+```
+
 ---
 
 ## 🎯 What it actually does
@@ -133,7 +165,10 @@ Tensors are `NHWC`, the same layout TensorFlow uses — so the forward pass is c
 |---|---|
 | **Tensors** | dtypes, devices, broadcasting, indexing, reductions, NumPy interop |
 | **Autograd** | reverse-mode gradients for 25+ ops, iterative graph walk, `no_grad`, finite-difference verified |
-| **Layers** | `Linear`, `Conv2D`, `MaxPool2D`, `AvgPool2D`, `Flatten`, `Dropout`, `Sequential` + a `Module` base you can subclass |
+| **Layers** | `Linear`, `Conv2D`, `MaxPool2D`, `AvgPool2D`, `Embedding`, `Flatten`, `Dropout`, `Sequential` + a `Module` base you can subclass |
+| **Normalization** | `BatchNorm1D`, `BatchNorm2D`, `LayerNorm` — running statistics survive save/load |
+| **Recurrent** | `RNN`, `LSTM` (unit forget bias), `GRU` — backprop through time on the same autograd engine |
+| **Attention** | `MultiHeadAttention`, `PositionalEncoding`, `TransformerEncoderBlock`, `TransformerEncoder`, causal and padding masks |
 | **Activations** | ReLU, sigmoid, tanh, softmax, log-softmax — as functions *and* modules |
 | **Losses** | MSE, MAE, BCE, BCE-with-logits (numerically stable), cross-entropy |
 | **Optimizers** | SGD, momentum, Nesterov, weight decay, Adam, AMSGrad |
@@ -148,7 +183,7 @@ Tensors are `NHWC`, the same layout TensorFlow uses — so the forward pass is c
 > **Experimental** — CUDA dispatch for tensors on a `cuda` device: kernels are correct and checked against NumPy,
 > but each call still copies to the device and back, so measure before relying on it.
 >
-> **Planned** — normalization layers, attention, GPU-resident tensors, mixed precision, ONNX.
+> **Planned** — GPU-resident tensors, mixed precision, ONNX, distributed training.
 > These are *not* implemented; see the [roadmap](#-roadmap).
 
 ---
@@ -168,11 +203,11 @@ cross-entropy  vs TensorFlow ............. exact to 6 decimal places
 its GRADIENT   vs TensorFlow ............. 3.725e-09
 ```
 
-**506 tests** run in under 10 seconds on CPU. CUDA tests skip themselves without a GPU;
+**630 tests** run in about 15 seconds on CPU. CUDA tests skip themselves without a GPU;
 TensorFlow tests skip themselves without TensorFlow. The core suite needs no network, no GPU, and no credentials.
 
 ```bash
-pytest                    # 498 passed, 8 skipped
+pytest                    # 622 passed, 8 skipped
 ./scripts/lint.sh         # ruff check + format check
 ```
 
@@ -243,8 +278,8 @@ EveryO is a readable reference implementation — when a tuned runtime beats it,
 Not implemented yet — contributions very welcome on any of these:
 
 - [x] ~~Convolution and pooling layers~~ — **shipped**: `Conv2D`, `MaxPool2D`, `AvgPool2D`
-- [ ] Batch / layer normalization
-- [ ] Recurrent layers, attention, transformer blocks
+- [x] ~~Batch / layer normalization~~ — **shipped**: `BatchNorm1D`, `BatchNorm2D`, `LayerNorm`
+- [x] ~~Recurrent layers, attention, transformer blocks~~ — **shipped**: `RNN`, `LSTM`, `GRU`, `MultiHeadAttention`, `TransformerEncoder`
 - [ ] GPU-resident tensors (removing per-call transfers)
 - [ ] Mixed-precision training
 - [ ] ONNX interoperability · model quantization · profiling tools
@@ -289,7 +324,7 @@ Sponsorship is configured in [`.github/FUNDING.yml`](.github/FUNDING.yml).
 | [Autograd](docs/autograd.md) | how the gradient engine works and how it is verified |
 | [CUDA](docs/cuda.md) | building, using and benchmarking the kernels |
 | [API reference](docs/api-reference.md) | the full public surface |
-| [Examples](examples/) | nine runnable scripts |
+| [Examples](examples/) | ten runnable scripts |
 
 ---
 
