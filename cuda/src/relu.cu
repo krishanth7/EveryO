@@ -35,12 +35,16 @@ void Relu(const float* x, float* out, std::size_t n) {
 
   EVERYO_CUDA_CHECK(cudaMemcpy(device_x.get(), x, bytes, cudaMemcpyHostToDevice));
 
-  ReluKernel<<<detail::GridSize(n, kBlockSize), kBlockSize>>>(
-      device_x.get(), device_out.get(), n);
-  EVERYO_CUDA_CHECK_KERNEL();
+  ReluDevice(device_x.get(), device_out.get(), n);
 
   EVERYO_CUDA_CHECK(
       cudaMemcpy(out, device_out.get(), bytes, cudaMemcpyDeviceToHost));
+}
+
+void ReluDevice(const float* x, float* out, std::size_t n) {
+  if (n == 0) return;
+  ReluKernel<<<detail::GridSize(n, kBlockSize), kBlockSize>>>(x, out, n);
+  EVERYO_CUDA_CHECK_KERNEL();
 }
 
 }  // namespace everyo

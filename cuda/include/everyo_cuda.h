@@ -1,10 +1,8 @@
 // EveryO CUDA kernels — public C++ interface.
 //
-// Every function here takes and returns host (CPU) pointers: the
-// implementation allocates device memory, copies the inputs across, launches
-// the kernel, copies the result back and frees the device memory.  That keeps
-// the Python data model simple (buffers are always NumPy arrays) at the cost of
-// transfer overhead, which the benchmarks in benchmarks/ measure honestly.
+// Host entry points preserve the original NumPy-facing API. Device-suffixed
+// entry points accept already-resident CUDA pointers so chained operations do
+// not repeat host/device transfers.
 //
 // All entry points throw std::runtime_error on invalid arguments or CUDA
 // failures, which pybind11 converts into Python exceptions.
@@ -55,12 +53,15 @@ DeviceProperties GetDeviceProperties(int index);
 
 // out[i] = a[i] + b[i] for i in [0, n).
 void VectorAdd(const float* a, const float* b, float* out, std::size_t n);
+void VectorAddDevice(const float* a, const float* b, float* out, std::size_t n);
 
 // out[i] = a[i] * b[i] for i in [0, n).
 void VectorMultiply(const float* a, const float* b, float* out, std::size_t n);
+void VectorMultiplyDevice(const float* a, const float* b, float* out, std::size_t n);
 
 // out[i] = max(x[i], 0) for i in [0, n).
 void Relu(const float* x, float* out, std::size_t n);
+void ReluDevice(const float* x, float* out, std::size_t n);
 
 // ---------------------------------------------------------------------------
 // Linear algebra and reductions
@@ -68,9 +69,11 @@ void Relu(const float* x, float* out, std::size_t n);
 
 // Row-major matrix product: out (m x n) = a (m x k) * b (k x n).
 void MatMul(const float* a, const float* b, float* out, int m, int k, int n);
+void MatMulDevice(const float* a, const float* b, float* out, int m, int k, int n);
 
 // Sum of every element of x, computed with a two-stage tree reduction.
 float Sum(const float* x, std::size_t n);
+float SumDevice(const float* x, std::size_t n);
 
 }  // namespace everyo
 

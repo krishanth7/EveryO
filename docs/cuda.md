@@ -12,7 +12,7 @@ degrades gracefully when the hardware or toolchain is absent.
 | CMake build | Available |
 | Automatic CPU fallback | Available |
 | Kernels used by tensors on a `cuda` device | Available (add, multiply, matmul, relu, sum) |
-| GPU-resident tensors (no per-call transfer) | Planned |
+| GPU-resident inference tensors (no per-call transfer) | Available |
 | Fused kernels, mixed precision | Planned |
 
 ## Checking availability
@@ -123,7 +123,11 @@ python benchmarks/benchmark_matmul.py --sizes 128 512 1024 2048
 ```
 
 Removing per-call transfers by keeping tensors resident on the device is the
-main planned optimisation, and is listed as planned rather than available.
+main optimisation for chained supported operations. Use `eo.cuda.to_device()`
+to upload float32 data once; addition, multiplication, ReLU, 2-D matrix
+multiplication and sum then use device-owned buffers. Call `.numpy()` for an
+explicit download. The resident API is inference-only and does not yet attach
+EveryO autograd nodes.
 
 ## Verifying correctness
 

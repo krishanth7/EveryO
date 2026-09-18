@@ -50,16 +50,18 @@ float Sum(const float* x, std::size_t n) {
   }
 
   const std::size_t bytes = n * sizeof(float);
-  const unsigned int blocks = detail::GridSize(n, kBlockSize);
-
   detail::DeviceBuffer device_x(bytes);
+  EVERYO_CUDA_CHECK(cudaMemcpy(device_x.get(), x, bytes, cudaMemcpyHostToDevice));
+  return SumDevice(device_x.get(), n);
+}
+
+float SumDevice(const float* x, std::size_t n) {
+  if (n == 0) return 0.0f;
+  const unsigned int blocks = detail::GridSize(n, kBlockSize);
   detail::DeviceBuffer device_partials(blocks * sizeof(float));
 
-  EVERYO_CUDA_CHECK(cudaMemcpy(device_x.get(), x, bytes, cudaMemcpyHostToDevice));
-
   const std::size_t shared_bytes = kBlockSize * sizeof(float);
-  SumKernel<<<blocks, kBlockSize, shared_bytes>>>(device_x.get(),
-                                                  device_partials.get(), n);
+  SumKernel<<<blocks, kBlockSize, shared_bytes>>>(x, device_partials.get(), n);
   EVERYO_CUDA_CHECK_KERNEL();
 
   std::vector<float> partials(blocks);
