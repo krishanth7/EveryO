@@ -15,7 +15,7 @@ Quick start:
 
 from __future__ import annotations
 
-from everyo import backends, cuda, datasets, distributed, quantization, visualization
+from everyo import backends, cuda, datasets, distributed, profiler, quantization, visualization
 from everyo._logging import configure_logging, get_logger
 from everyo.config import Config, DeviceConfig, ModelConfig, TrainingConfig, load_config
 from everyo.core.autograd import enable_grad, no_grad, set_grad_enabled
@@ -189,6 +189,7 @@ __all__ = [
     # subpackages
     "distributed",
     "quantization",
+    "profiler",
     # mixed precision
     "GradScaler",
     "autocast",
