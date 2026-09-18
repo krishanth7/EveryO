@@ -20,6 +20,7 @@ from typing import Any, Sequence
 import numpy as np
 
 from everyo.core import autograd
+from everyo.core.autocast import autocast_like, match_reduced_dtype
 from everyo.core.autograd import Node, unbroadcast
 from everyo.core.device import Device, DeviceLike, resolve_device
 from everyo.core.dtype import DEFAULT_FLOAT_DTYPE, is_floating, resolve_dtype
@@ -544,18 +545,30 @@ def matmul(a: Any, b: Any) -> Tensor:
         raise EveryOShapeError.for_matmul(left.shape, right.shape)
 
     device = _result_device((left, right))
-    data = _dispatch("matmul", device, left.data, right.data)
+    if not device.is_cuda:
+        # Autocast hook. autocast_like() inserts an explicit cast node, so the
+        # multiply-accumulate below runs in reduced precision and the cast's
+        # backward pass restores each operand's own dtype -- fp32 parameters
+        # keep fp32 gradients while activations stay in float16. Outside an
+        # autocast block both calls return their argument unchanged.
+        left = autocast_like(left)
+        right = autocast_like(right)
+    left_data, right_data = left.data, right.data
+    data = _dispatch("matmul", device, left_data, right_data)
 
     left_is_vector = left.ndim == 1
     right_is_vector = right.ndim == 1
 
     def backward_fn(gradient: np.ndarray):
-        grad = np.asarray(gradient)
+        # The gradient of a reduced-precision result is itself a
+        # reduced-precision quantity; representing it as one is what makes
+        # float16 underflow real rather than silently avoided.
+        grad = match_reduced_dtype(np.asarray(gradient), data)
         # Promote 1-D operands to matrices so one formula covers every rank
         # combination, including batched operands. NumPy's matmul does the same
         # promotion in the forward pass, so the shapes always line up.
-        left_matrix = left.data[np.newaxis, :] if left_is_vector else left.data
-        right_matrix = right.data[:, np.newaxis] if right_is_vector else right.data
+        left_matrix = left_data[np.newaxis, :] if left_is_vector else left_data
+        right_matrix = right_data[:, np.newaxis] if right_is_vector else right_data
 
         grad_matrix = grad
         if left_is_vector and right_is_vector:

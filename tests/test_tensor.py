@@ -40,7 +40,11 @@ class TestConstruction:
 
     def test_unknown_dtype_is_rejected(self):
         with pytest.raises(EveryODTypeError):
-            eo.tensor([1.0], dtype="float16")
+            eo.tensor([1.0], dtype="float128")
+
+    def test_float16_is_supported(self):
+        # float16 is a first-class dtype since mixed precision landed.
+        assert eo.tensor([1.0], dtype="float16").dtype == "float16"
 
 
 class TestProperties:

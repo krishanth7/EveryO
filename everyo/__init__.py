@@ -15,7 +15,7 @@ Quick start:
 
 from __future__ import annotations
 
-from everyo import backends, cuda, datasets, visualization
+from everyo import backends, cuda, datasets, distributed, visualization
 from everyo._logging import configure_logging, get_logger
 from everyo.config import Config, DeviceConfig, ModelConfig, TrainingConfig, load_config
 from everyo.core.autograd import enable_grad, no_grad, set_grad_enabled
@@ -129,7 +129,20 @@ from everyo.nn import (
     scaled_dot_product_attention,
 )
 from everyo.optim import SGD, Adam, Optimizer
-from everyo.serialization import inspect_archive, load, save
+from everyo.precision import (
+    GradScaler,
+    autocast,
+    autocast_dtype,
+    is_autocast_enabled,
+)
+from everyo.serialization import (
+    export_onnx,
+    inspect_archive,
+    load,
+    onnx_available,
+    run_onnx,
+    save,
+)
 from everyo.training import (
     Callback,
     CSVLogger,
@@ -173,6 +186,13 @@ __all__ = [
     "no_grad",
     "set_grad_enabled",
     "tensor",
+    # subpackages
+    "distributed",
+    # mixed precision
+    "GradScaler",
+    "autocast",
+    "autocast_dtype",
+    "is_autocast_enabled",
     # operations
     "abs",
     "avg_pool2d",
@@ -283,8 +303,11 @@ __all__ = [
     "accuracy",
     "confusion_matrix",
     # serialization
+    "export_onnx",
     "inspect_archive",
     "load",
+    "onnx_available",
+    "run_onnx",
     "save",
     # visualization
     "plot_accuracy",

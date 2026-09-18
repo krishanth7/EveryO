@@ -51,7 +51,7 @@ def causal_mask(size: int) -> np.ndarray:
 
     Example:
         >>> from everyo.nn.attention import causal_mask
-        >>> causal_mask(3)[0, 0, 0, 1] < 0
+        >>> bool(causal_mask(3)[0, 0, 0, 1] < 0)
         True
     """
     if int(size) <= 0:

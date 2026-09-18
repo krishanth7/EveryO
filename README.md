@@ -16,7 +16,7 @@ Small enough to read in an afternoon. Correct enough to trust.</p>
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-eb6834)](CONTRIBUTING.md)
 [![Stars](https://img.shields.io/github/stars/krishanth7/EveryO?style=flat&color=eda100)](https://github.com/krishanth7/EveryO/stargazers)
 
-**[Quick start](#-quick-start-60-seconds) · [What it does](#-what-it-actually-does) · [Results](#-results-from-a-real-run) · [Architecture](#-architecture) · [Roadmap](#-roadmap) · [Contribute](#-contributing)**
+**[Quick start](#-quick-start-60-seconds) · [What it does](#-what-it-actually-does) · [Results](#-results-from-a-real-run) · [Architecture](#-architecture) · [Mixed precision](#-mixed-precision-onnx-and-multi-core-training) · [Roadmap](#-roadmap) · [Contribute](#-contributing)**
 
 </div>
 
@@ -177,13 +177,16 @@ LSTM  7.71e-06     ~560,000x larger
 | **Serialization** | `.evo` archives that **cannot execute code on load** |
 | **Visualization** | every chart on this page, headless-safe |
 | **CLI** | `everyo info · doctor · benchmark · test · demo` |
+| **Mixed precision** | `autocast` + `GradScaler` with fp32 master weights and dynamic loss scaling |
+| **ONNX export** | `export_onnx` — verified against ONNX Runtime, not just against the schema checker |
+| **Distributed** | single-machine data parallelism: gradient all-reduce across processes |
 | **CUDA** | 5 hand-written kernels + pybind11 bindings, with automatic CPU fallback |
 | **TensorFlow** | optional cross-checks and a Keras reference model |
 
 > **Experimental** — CUDA dispatch for tensors on a `cuda` device: kernels are correct and checked against NumPy,
 > but each call still copies to the device and back, so measure before relying on it.
 >
-> **Planned** — GPU-resident tensors, mixed precision, ONNX, distributed training.
+> **Planned** — GPU-resident tensors, model quantization, profiling tools, multi-node distributed training.
 > These are *not* implemented; see the [roadmap](#-roadmap).
 
 ---
@@ -259,6 +262,80 @@ Details in **[docs/cuda.md](docs/cuda.md)**.
 
 ---
 
+## 🧪 Mixed precision, ONNX and multi-core training
+
+Three things a framework is supposed to grow into. All three are implemented, and all three are
+measured rather than claimed.
+
+### `autocast` + `GradScaler`
+
+`matmul` and `conv2d` run in float16 under `autocast`; everything else stays in float32, and the
+parameters never leave it. Loss scaling is not decoration here — the backward pass genuinely runs
+in float16, so gradients genuinely underflow:
+
+```
+Gradient elements flushed to zero (193 total, tiny-loss regime)
+  no GradScaler ........ 192 / 193
+  with GradScaler ......   1 / 193
+
+Final MSE after 400 steps
+  autocast, no scaler .. 6.2983
+  autocast + scaler .... 0.0474      matches float32's 0.0474
+```
+
+> **On a CPU this saves memory, not time.** NumPy has no native float16 arithmetic — it upcasts to
+> compute — so the float16 path is usually *slower* here. The speedup mixed precision is famous for
+> comes from GPU tensor cores. The numerics are honest; the marketing isn't borrowed.
+
+### ONNX export
+
+```python
+model.eval()
+eo.export_onnx(model, "model.onnx", input_shape=(1, 8, 8, 1))
+```
+
+EveryO is `NHWC`; ONNX `Conv` is `NCHW`. Rather than paper over that, every convolution and pooling
+node is wrapped in a real pair of `Transpose` nodes and `"same"` padding is written out as explicit
+`pads`, so TensorFlow's asymmetric rule survives the trip. A trained digit CNN, exported and re-run
+through ONNX Runtime:
+
+```
+output shape ............ (128, 10)
+largest absolute diff ... 1.144e-05      float32 rounding, not a semantic gap
+predictions that agree .. 100.0%
+```
+
+Recurrent and attention layers are **not** exported — they unroll into primitive chains that need a
+tracing exporter. Passing one raises an error that names the layer instead of writing a graph that
+quietly computes something else.
+
+### Data-parallel training
+
+Processes, not threads, with a shared-memory gradient all-reduce. Averaging gradients over disjoint
+shards is the same arithmetic as one large batch, so the result should match single-process
+training — and the example checks that instead of asserting it:
+
+```
+ workers   rows/worker    seconds    max drift   ranks agree
+--------------------------------------------------------------
+       1          4096       0.26     0.00e+00          True
+       2          2048       0.16     1.79e-07          True
+       4          1024       0.14     2.09e-07          True
+```
+
+> **One machine only.** No multi-node, no TCP rendezvous, no NCCL. And set `OMP_NUM_THREADS=1`
+> first: on the same 4-core box, four workers took **1.8s** with it set and **11.0s** without —
+> slower than not parallelising at all, because sixteen BLAS threads were fighting over four cores.
+> `spawn()` warns when it looks unset.
+
+```bash
+python examples/mixed_precision.py
+python examples/onnx_export.py
+OMP_NUM_THREADS=1 python examples/distributed_training.py
+```
+
+---
+
 ## 📈 Benchmarks
 
 Numbers come from *your* machine, never from this README:
@@ -280,10 +357,13 @@ Not implemented yet — contributions very welcome on any of these:
 - [x] ~~Convolution and pooling layers~~ — **shipped**: `Conv2D`, `MaxPool2D`, `AvgPool2D`
 - [x] ~~Batch / layer normalization~~ — **shipped**: `BatchNorm1D`, `BatchNorm2D`, `LayerNorm`
 - [x] ~~Recurrent layers, attention, transformer blocks~~ — **shipped**: `RNN`, `LSTM`, `GRU`, `MultiHeadAttention`, `TransformerEncoder`
+- [x] ~~Mixed-precision training~~ — **shipped**: `autocast`, `GradScaler`
+- [x] ~~ONNX interoperability~~ — **shipped**: `export_onnx`, verified against ONNX Runtime
+- [x] ~~Distributed training~~ — **shipped**: single-machine data parallelism
 - [ ] GPU-resident tensors (removing per-call transfers)
-- [ ] Mixed-precision training
-- [ ] ONNX interoperability · model quantization · profiling tools
-- [ ] Distributed training
+- [ ] Multi-node distributed training (today's implementation is one machine only)
+- [ ] Model quantization · profiling tools
+- [ ] A tracing ONNX exporter, so recurrent and attention layers can be exported too
 
 ---
 

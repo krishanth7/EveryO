@@ -155,12 +155,36 @@ locally from a seed; nothing is downloaded.
 `eo.load_config(path)`, `eo.Config`, `eo.ModelConfig`, `eo.TrainingConfig`,
 `eo.DeviceConfig`; `eo.configure_logging(level)` and `eo.get_logger(name)`.
 
+## Mixed precision
+
+`eo.autocast(enabled=True, *, dtype="float16")` — context manager and decorator;
+`eo.is_autocast_enabled()`, `eo.autocast_dtype()`. `eo.GradScaler(init_scale, *,
+growth_factor, backoff_factor, growth_interval, enabled)` with `scale`,
+`backward`, `unscale_`, `step`, `update`, `get_scale`, `state_dict` and
+`load_state_dict`. Only `matmul` and `conv2d` are autocast; see
+[scaling.md](scaling.md).
+
+## ONNX export
+
+`eo.export_onnx(model, path, *, input_shape, input_name, output_name, opset,
+model_name)`, `eo.run_onnx(path, inputs, *, input_name)`, `eo.onnx_available()`.
+`everyo.serialization.onnx_export` also exports `SUPPORTED_LAYERS` and
+`DEFAULT_OPSET`. Needs the optional `everyo[onnx]` extra.
+
+## Distributed training
+
+`everyo.distributed`: `spawn(fn, world_size, *, args, kwargs, start_method,
+timeout)`, `ProcessGroup` (`rank`, `world_size`, `is_main`, `barrier`,
+`all_reduce_mean`, `broadcast`, `close`), `average_gradients(parameters, group)`,
+`all_reduce_mean(arrays, group)`, `shard_indices(count, rank, world_size, *,
+drop_last)`, `available_workers()`, `DistributedError`. Single machine only.
+
 ## Exceptions
 
 `EveryOError` is the base class. Subclasses: `EveryOShapeError`,
 `EveryODeviceError`, `EveryODTypeError`, `EveryOGradientError`,
 `EveryOSerializationError`, `EveryOConfigurationError`, `EveryOBackendError`,
-`EveryOCudaError`.
+`EveryOCudaError`, and `everyo.distributed.DistributedError`.
 
 ## Command line
 

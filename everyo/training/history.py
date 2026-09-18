@@ -21,7 +21,7 @@ class History:
 
     Example:
         >>> history = History()
-        >>> history.append(epoch=1, loss=0.5)
+        >>> _ = history.append(epoch=1, loss=0.5)
         >>> history["loss"]
         [0.5]
     """
