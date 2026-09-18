@@ -71,15 +71,18 @@ void MatMul(const float* a, const float* b, float* out, int m, int k, int n) {
   EVERYO_CUDA_CHECK(cudaMemcpy(device_a.get(), a, a_bytes, cudaMemcpyHostToDevice));
   EVERYO_CUDA_CHECK(cudaMemcpy(device_b.get(), b, b_bytes, cudaMemcpyHostToDevice));
 
-  const dim3 block(kTileWidth, kTileWidth);
-  const dim3 grid((n + kTileWidth - 1) / kTileWidth,
-                  (m + kTileWidth - 1) / kTileWidth);
-  MatMulKernel<<<grid, block>>>(device_a.get(), device_b.get(), device_out.get(),
-                                m, k, n);
-  EVERYO_CUDA_CHECK_KERNEL();
+  MatMulDevice(device_a.get(), device_b.get(), device_out.get(), m, k, n);
 
   EVERYO_CUDA_CHECK(
       cudaMemcpy(out, device_out.get(), out_bytes, cudaMemcpyDeviceToHost));
+}
+
+void MatMulDevice(const float* a, const float* b, float* out, int m, int k, int n) {
+  const dim3 block(kTileWidth, kTileWidth);
+  const dim3 grid((n + kTileWidth - 1) / kTileWidth,
+                  (m + kTileWidth - 1) / kTileWidth);
+  MatMulKernel<<<grid, block>>>(a, b, out, m, k, n);
+  EVERYO_CUDA_CHECK_KERNEL();
 }
 
 }  // namespace everyo

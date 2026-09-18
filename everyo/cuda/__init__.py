@@ -20,6 +20,7 @@ from everyo.cuda.availability import (
     unavailable_reason,
 )
 from everyo.cuda.interface import KERNEL_NAMES, add, matmul, multiply, relu, sum_all
+from everyo.cuda.resident import ResidentTensor, to_device
 
 __all__ = [
     "EXTENSION_NAME",
@@ -32,6 +33,8 @@ __all__ = [
     "relu",
     "reset_cache",
     "runtime_info",
+    "ResidentTensor",
     "sum_all",
+    "to_device",
     "unavailable_reason",
 ]

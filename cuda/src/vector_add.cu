@@ -29,41 +29,38 @@ __global__ void VectorMultiplyKernel(const float* a, const float* b, float* out,
   }
 }
 
-// Shared host-side driver for both element-wise binary kernels.
-template <typename Kernel>
-void RunBinary(Kernel kernel, const float* a, const float* b, float* out,
-               std::size_t n) {
-  if (n == 0) {
-    return;
-  }
-  if (a == nullptr || b == nullptr || out == nullptr) {
-    throw std::runtime_error("Received a null pointer for an element-wise kernel.");
-  }
-
-  const std::size_t bytes = n * sizeof(float);
-  detail::DeviceBuffer device_a(bytes);
-  detail::DeviceBuffer device_b(bytes);
-  detail::DeviceBuffer device_out(bytes);
-
-  EVERYO_CUDA_CHECK(cudaMemcpy(device_a.get(), a, bytes, cudaMemcpyHostToDevice));
-  EVERYO_CUDA_CHECK(cudaMemcpy(device_b.get(), b, bytes, cudaMemcpyHostToDevice));
-
-  kernel<<<detail::GridSize(n, kBlockSize), kBlockSize>>>(
-      device_a.get(), device_b.get(), device_out.get(), n);
-  EVERYO_CUDA_CHECK_KERNEL();
-
-  EVERYO_CUDA_CHECK(
-      cudaMemcpy(out, device_out.get(), bytes, cudaMemcpyDeviceToHost));
-}
-
 }  // namespace
 
 void VectorAdd(const float* a, const float* b, float* out, std::size_t n) {
-  RunBinary(VectorAddKernel, a, b, out, n);
+  if (n == 0) return;
+  const std::size_t bytes = n * sizeof(float);
+  detail::DeviceBuffer da(bytes), db(bytes), dout(bytes);
+  EVERYO_CUDA_CHECK(cudaMemcpy(da.get(), a, bytes, cudaMemcpyHostToDevice));
+  EVERYO_CUDA_CHECK(cudaMemcpy(db.get(), b, bytes, cudaMemcpyHostToDevice));
+  VectorAddDevice(da.get(), db.get(), dout.get(), n);
+  EVERYO_CUDA_CHECK(cudaMemcpy(out, dout.get(), bytes, cudaMemcpyDeviceToHost));
 }
 
 void VectorMultiply(const float* a, const float* b, float* out, std::size_t n) {
-  RunBinary(VectorMultiplyKernel, a, b, out, n);
+  if (n == 0) return;
+  const std::size_t bytes = n * sizeof(float);
+  detail::DeviceBuffer da(bytes), db(bytes), dout(bytes);
+  EVERYO_CUDA_CHECK(cudaMemcpy(da.get(), a, bytes, cudaMemcpyHostToDevice));
+  EVERYO_CUDA_CHECK(cudaMemcpy(db.get(), b, bytes, cudaMemcpyHostToDevice));
+  VectorMultiplyDevice(da.get(), db.get(), dout.get(), n);
+  EVERYO_CUDA_CHECK(cudaMemcpy(out, dout.get(), bytes, cudaMemcpyDeviceToHost));
+}
+
+void VectorAddDevice(const float* a, const float* b, float* out, std::size_t n) {
+  if (n == 0) return;
+  VectorAddKernel<<<detail::GridSize(n, kBlockSize), kBlockSize>>>(a, b, out, n);
+  EVERYO_CUDA_CHECK_KERNEL();
+}
+
+void VectorMultiplyDevice(const float* a, const float* b, float* out, std::size_t n) {
+  if (n == 0) return;
+  VectorMultiplyKernel<<<detail::GridSize(n, kBlockSize), kBlockSize>>>(a, b, out, n);
+  EVERYO_CUDA_CHECK_KERNEL();
 }
 
 }  // namespace everyo
