@@ -76,6 +76,14 @@ z = eo.matmul(x, y)  # runs the tiled CUDA kernel when available
 
 ## Fallback rules
 
+Core operations select an `OperatorBackend` through
+`everyo.backends.backend_for()`. A dispatch returns the requested backend, the
+backend that actually executed, and a reason whenever CUDA falls back. This
+makes unsupported dtypes, ranks, and broadcast shapes testable instead of
+silently hiding the decision. Host/device conversion is represented by the
+backend's `from_host()` and `to_host()` boundary; the current native extension
+still performs a transfer for each kernel call.
+
 | Situation | Behaviour |
 | --- | --- |
 | `eo.device("cuda")`, no CUDA | Returns the CPU device, logs a warning |

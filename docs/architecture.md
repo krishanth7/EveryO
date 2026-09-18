@@ -47,17 +47,20 @@ The foundation.
 
 ### `everyo.backends`
 
-`numpy_backend.py` is the reference implementation of every kernel EveryO
-needs. `tensorflow_backend.py` is optional and used for cross-checking
-numerics, for a Keras reference model and for benchmarks. Importing the
-package never imports TensorFlow.
+`operator_backend.py` defines the common `OperatorBackend` contract and owns
+all device dispatch and fallback decisions. `numpy_backend.py` is the reference
+implementation of every kernel EveryO needs. `tensorflow_backend.py` is
+optional and used for cross-checking numerics, for a Keras reference model and
+for benchmarks. Importing the package never imports TensorFlow.
 
 ### `everyo.cuda`
 
 `availability.py` answers "can we run CUDA kernels right now?" without ever
-raising. `interface.py` mirrors the NumPy kernel signatures and falls back to
-NumPy unless `strict=True` is passed. The kernels themselves live in the
-top-level `cuda/` directory and are built separately.
+raising. `interface.py` mirrors the NumPy kernel signatures and exposes
+`supports()` plus `unsupported_reason()` so dispatch misses are observable and
+testable. Direct calls fall back to NumPy unless `strict=True` is passed. The
+kernels themselves live in the top-level `cuda/` directory and are built
+separately.
 
 ### `everyo.nn`
 

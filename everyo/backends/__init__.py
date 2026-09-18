@@ -12,8 +12,26 @@ from __future__ import annotations
 from typing import Any
 
 from everyo.backends import numpy_backend
+from everyo.backends.operator_backend import (
+    CudaOperatorBackend,
+    DispatchResult,
+    NumpyOperatorBackend,
+    OperatorBackend,
+    backend_for,
+    dispatch,
+)
 
-__all__ = ["numpy_backend", "available_backends", "describe_backends"]
+__all__ = [
+    "numpy_backend",
+    "available_backends",
+    "describe_backends",
+    "OperatorBackend",
+    "NumpyOperatorBackend",
+    "CudaOperatorBackend",
+    "DispatchResult",
+    "backend_for",
+    "dispatch",
+]
 
 
 def available_backends() -> list[str]:
