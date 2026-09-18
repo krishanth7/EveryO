@@ -16,24 +16,56 @@ Small enough to read in an afternoon. Correct enough to trust.</p>
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-eb6834)](CONTRIBUTING.md)
 [![Stars](https://img.shields.io/github/stars/krishanth7/EveryO?style=flat&color=eda100)](https://github.com/krishanth7/EveryO/stargazers)
 
-**[Quick start](#-quick-start-60-seconds) · [What it does](#-what-it-actually-does) · [Results](#-results-from-a-real-run) · [Architecture](#-architecture) · [Mixed precision](#-mixed-precision-onnx-and-multi-core-training) · [Roadmap](#-roadmap) · [Contribute](#-contributing)**
+**[What is EveryO?](#what-is-everyo) · [Quick start](#-quick-start-60-seconds) · [What it does](#-what-it-actually-does) · [Results](#-results-from-a-real-run) · [Architecture](#-architecture) · [Roadmap](#-roadmap) · [Contribute](#-contributing) · [Governance](#-governance-and-project-policies)**
 
 </div>
 
 ---
 
-## Why this exists
+## What is EveryO?
 
-Every deep-learning tutorial ends at `model.fit()`. Every production framework starts a million lines below it.
-There is almost nothing in between you can actually *read*.
+EveryO is a **neural network framework written from scratch in Python**. Tensors, reverse-mode
+automatic differentiation, layers, optimizers, the training loop, serialization — all of it is
+implemented here, on top of NumPy. It is not a wrapper around PyTorch, TensorFlow or JAX, and it
+does not call out to one at runtime.
 
-EveryO is that middle. The gradient engine is **251 lines**. The whole core is **~8,000 lines** across 54 focused
-modules. You can follow a single number from `loss.backward()` all the way to a CUDA kernel — and every gradient
-in it is verified against finite differences **and** against TensorFlow.
+The point is legibility. The gradient engine is **251 lines**. The whole package is **~11,500 lines**
+across 65 focused modules. You can follow one number from `loss.backward()` through the graph walk,
+into a matrix multiply, and out to a hand-written CUDA kernel — reading real code the entire way.
+
+Legibility is worthless without correctness, so every differentiable operation is checked against
+central finite differences, and the numerical results are checked against TensorFlow. Where the two
+disagree, the README says by how much.
 
 ```
 BUILD  →  TRAIN  →  MEASURE  →  UNDERSTAND  →  ACCELERATE
 ```
+
+### Who it is for
+
+- **People learning how deep learning actually works** — you can read the derivative of every
+  operation you use, not just call it.
+- **Engineers who need to verify a result** — a small, deterministic, dependency-light reference
+  you can step through in a debugger.
+- **Teachers and students** — no accounts, no API keys, no downloads, no network access. `pip install -e .`
+  and everything in this README runs.
+
+### What it is not
+
+EveryO is **not a production training runtime**. It will not out-perform a tuned framework on a
+large model, it has no GPU-resident tensors yet, and its distributed training runs on one machine.
+Those limits are stated where they apply rather than left for you to discover — see
+[Roadmap](#-roadmap) for what is genuinely unbuilt.
+
+### How to trust it
+
+| Question | Where it is answered |
+|---|---|
+| Are the gradients right? | [Correctness is the feature](#-correctness-is-the-feature) — finite differences and TensorFlow, with the exact deltas |
+| How is it put together? | [Architecture](#-architecture) and [docs/architecture.md](docs/architecture.md) |
+| Is it safe to load a model? | [Security](#-security) — `.evo` archives are pickle-free and cannot execute code |
+| Who decides what ships? | [Governance](GOVERNANCE.md) and [Project policy](PROJECT_POLICY.md) |
+| How do I get help? | [Support](SUPPORT.md) |
 
 <div align="center">
 <img src="docs/assets/terminal.png" alt="everyo doctor and everyo demo running end to end" width="92%">
@@ -206,11 +238,11 @@ cross-entropy  vs TensorFlow ............. exact to 6 decimal places
 its GRADIENT   vs TensorFlow ............. 3.725e-09
 ```
 
-**630 tests** run in about 15 seconds on CPU. CUDA tests skip themselves without a GPU;
+**709 tests** run in about 17 seconds on CPU. CUDA tests skip themselves without a GPU;
 TensorFlow tests skip themselves without TensorFlow. The core suite needs no network, no GPU, and no credentials.
 
 ```bash
-pytest                    # 622 passed, 8 skipped
+pytest                    # 709 passed, 8 skipped
 ./scripts/lint.sh         # ruff check + format check
 ```
 
@@ -381,6 +413,10 @@ The rules are short: add a test (gradients need a finite-difference check), keep
 sure the core still works with neither CUDA nor TensorFlow installed. Full guide in
 **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
+Before opening your first pull request, it is worth two minutes on
+**[REPOSITORY_RULES.md](REPOSITORY_RULES.md)** (what a reviewable change looks like) and
+**[GOVERNANCE.md](GOVERNANCE.md)** (who decides, and how). Both are short and neither is boilerplate.
+
 ---
 
 ## 💛 Support this project
@@ -403,21 +439,39 @@ Sponsorship is configured in [`.github/FUNDING.yml`](.github/FUNDING.yml).
 | [Architecture](docs/architecture.md) | how it is layered, and why |
 | [Autograd](docs/autograd.md) | how the gradient engine works and how it is verified |
 | [CUDA](docs/cuda.md) | building, using and benchmarking the kernels |
+| [Scaling](docs/scaling.md) | mixed precision, ONNX export and data-parallel training |
 | [API reference](docs/api-reference.md) | the full public surface |
-| [Examples](examples/) | ten runnable scripts |
+| [Examples](examples/) | thirteen runnable scripts |
+
+Project documents — governance, policies, support and security — are listed under
+[Governance and project policies](#-governance-and-project-policies).
 
 ---
 
-## 🧭 Community and project policies
+## 🧭 Governance and project policies
 
-| Resource | Purpose |
+EveryO is independently maintained, and how it is run is written down rather than implied.
+If you are deciding whether to depend on this project, contribute to it, or teach with it, these
+documents tell you who decides what, what is expected of participants, and what you are permitted
+to do with the code.
+
+| Document | Read it when you want to know |
 |---|---|
-| [Contributing guide](CONTRIBUTING.md) | development setup, tests and pull requests |
-| [Repository rules](REPOSITORY_RULES.md) | participation and technical submission standards |
-| [Governance](GOVERNANCE.md) | roles, decisions and releases |
-| [Support](SUPPORT.md) | where and how to request help |
-| [Code of Conduct](CODE_OF_CONDUCT.md) | community behavior |
-| [Project policy](PROJECT_POLICY.md) | use, contribution, branding and promotion terms |
+| [**Governance**](GOVERNANCE.md) | Who maintains EveryO, how technical decisions are made, how disagreements are resolved, and who approves a release |
+| [**Project policy**](PROJECT_POLICY.md) | The terms for using, contributing to, forking and referring to the project — including branding and promotion |
+| [**Repository rules**](REPOSITORY_RULES.md) | The standards an issue, discussion or pull request is held to, technical and behavioural |
+| [**Code of Conduct**](CODE_OF_CONDUCT.md) | The behaviour expected of everyone taking part, and how to report a problem |
+| [**Contributing guide**](CONTRIBUTING.md) | How to set up a development environment, run the suite, and get a change reviewed |
+| [**Support**](SUPPORT.md) | Where to ask a question, and what response you can reasonably expect |
+| [**Security policy**](SECURITY.md) | How to report a vulnerability privately, and the project's threat model |
+| [**License**](LICENSE) | MIT — the legal terms, which the project policy supplements but never replaces |
+
+**In short:** the maintainer holds final technical decisions and release approval; anyone may
+contribute through issues, discussions, review or pull requests; and contributing does not by itself
+grant commit or release access. Security reports go through
+[SECURITY.md](SECURITY.md) and are not discussed publicly before coordinated disclosure.
+
+---
 
 ## 🔒 Security
 
