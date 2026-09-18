@@ -41,6 +41,7 @@ dependencies = [
 [project.optional-dependencies]
 tensorflow = ["tensorflow>=2.12"]
 yaml = ["PyYAML>=6.0"]
+onnx = ["onnx>=1.15", "onnxruntime>=1.17"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",

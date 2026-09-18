@@ -25,6 +25,7 @@ from typing import Any
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
+from everyo.core.autocast import autocast_like, match_reduced_dtype
 from everyo.core.autograd import unbroadcast
 from everyo.core.operations import _make
 from everyo.core.tensor import Tensor, as_tensor
@@ -217,13 +218,21 @@ def conv2d(
     out_h = compute_output_size(height, kernel_h, stride_pair[0], pad_h)
     out_w = compute_output_size(width, kernel_w, stride_pair[1], pad_w)
 
+    # Autocast hook: the im2col matmul is the expensive part of a convolution,
+    # so it is the part that runs in reduced precision. autocast_like() adds an
+    # explicit cast node whose backward pass restores each operand's dtype, so
+    # the kernel and bias keep their float32 gradients. Outside an autocast
+    # block these calls return their argument unchanged.
+    value = autocast_like(value)
+    kernel_tensor = autocast_like(kernel_tensor)
+
     padded = _pad_image(value.data, pad_h, pad_w, 0.0)
     columns = np.ascontiguousarray(_windows(padded, (kernel_h, kernel_w), stride_pair))
     flat_columns = columns.reshape(batch * out_h * out_w, -1)
     flat_kernel = kernel_tensor.data.reshape(-1, out_channels)
 
     result = flat_columns @ flat_kernel
-    bias_tensor = None if bias is None else as_tensor(bias)
+    bias_tensor = None if bias is None else autocast_like(as_tensor(bias))
     if bias_tensor is not None:
         if bias_tensor.shape != (out_channels,):
             raise EveryOShapeError(
@@ -237,7 +246,9 @@ def conv2d(
     padded_shape = (batch, padded_h, padded_w, in_channels)
 
     def backward_fn(gradient: np.ndarray):
-        grad = np.asarray(gradient).reshape(batch * out_h * out_w, out_channels)
+        grad = match_reduced_dtype(np.asarray(gradient), data).reshape(
+            batch * out_h * out_w, out_channels
+        )
 
         grad_input = (grad @ flat_kernel.T).reshape(
             batch, out_h, out_w, kernel_h, kernel_w, in_channels
@@ -248,7 +259,17 @@ def conv2d(
             (flat_columns.T @ grad).reshape(kernel_h, kernel_w, in_channels, out_channels),
         ]
         if bias_tensor is not None:
-            grads.append(unbroadcast(grad.sum(axis=0), bias_tensor.shape))
+            grads.append(
+                unbroadcast(
+                    # Accumulate the bias reduction in at least fp32 -- summing
+                    # thousands of rows is where 16 bits runs out -- then return
+                    # it in the incoming gradient's dtype, as the node contract
+                    # requires. The cast node above restores float32 for the
+                    # parameter itself.
+                    grad.sum(axis=0, dtype=np.result_type(grad.dtype, np.float32)),
+                    bias_tensor.shape,
+                ).astype(grad.dtype, copy=False)
+            )
         return tuple(grads)
 
     return _make(data, inputs, "conv2d", backward_fn)
@@ -338,7 +359,10 @@ def avg_pool2d(x: Any, pool_size: Any = 2, *, stride: Any = None, padding: Any =
 
     Example:
         >>> import everyo as eo
-        >>> eo.avg_pool2d(eo.ones(1, 4, 4, 1), 2).item()
+        >>> pooled = eo.avg_pool2d(eo.ones(1, 4, 4, 1), 2)
+        >>> pooled.shape
+        (1, 2, 2, 1)
+        >>> float(pooled.data[0, 0, 0, 0])
         1.0
     """
     value, pool, stride_pair, pad_h, pad_w, out_h, out_w = _pool_setup(

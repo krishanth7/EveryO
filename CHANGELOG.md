@@ -8,6 +8,56 @@ All notable changes to EveryO are recorded here. The format follows
 
 ### Added
 
+- **Mixed-precision training**: `eo.autocast` and `eo.GradScaler`. Only
+  `matmul` and `conv2d` are cast to float16; reductions, exponentials,
+  normalization and losses stay in float32. Autocast works by inserting a
+  differentiable cast node, so the backward pass genuinely runs in float16
+  while parameters keep float32 gradients — the fp32 master-weight
+  arrangement. That matters: with the backward pass in float16, 192 of 193
+  gradient elements in a small-loss regime flush to zero without a scaler and
+  1 of 193 with one, and the same 400-step run ends at MSE 6.2983 unscaled
+  against 0.0474 scaled (float32 reference: 0.0474). `scaler.backward(loss)`
+  suppresses the NumPy overflow warnings that a working scaler provokes.
+  `float16` is now a supported dtype. **On a CPU this saves memory, not time**:
+  NumPy upcasts float16 to compute, so the reduced-precision path is usually
+  slower there; the speedup comes from GPU tensor cores.
+- **ONNX export**: `eo.export_onnx`, plus `eo.run_onnx` and
+  `eo.onnx_available`. Covers `Sequential`, `Linear`, `Conv2D`, `MaxPool2D`,
+  `AvgPool2D`, `Flatten`, `Dropout`, `BatchNorm1D`, `BatchNorm2D`, `LayerNorm`
+  and the five activations.
+  - EveryO is `NHWC` and ONNX `Conv` is `NCHW`, so every convolution and
+    pooling node is wrapped in a real pair of `Transpose` nodes and the kernel
+    is permuted to `(out, in, kh, kw)`. `"same"` padding is written as explicit
+    `pads`, not `auto_pad`, so TensorFlow's asymmetric rule survives.
+  - Batch normalization is folded into one scale-and-shift, which is
+    numerically identical and layout-free. `track_running_stats=False` is
+    refused rather than guessed at.
+  - Every supported layer is tested by running the exported graph through ONNX
+    Runtime and comparing against the EveryO model, not by checking that a file
+    appeared. A trained digit CNN agrees to `1.1e-05`, with 100% of predictions
+    matching.
+  - Recurrent layers, `Embedding`, attention and the transformer blocks are
+    **not** exported; they raise an error naming the layer instead of writing a
+    graph that quietly computes something else.
+  - New optional extra: `pip install everyo[onnx]`.
+- **Single-machine data-parallel training**: `everyo.distributed`, with
+  `spawn`, `ProcessGroup`, `average_gradients`, `all_reduce_mean`,
+  `shard_indices` and `available_workers`. Workers are processes with a
+  shared-memory gradient all-reduce; reduction is in float64 so summing float32
+  gradients across ranks loses nothing to the reduction itself.
+  - Verified against single-process training: after 60 steps on 4096 samples,
+    2 and 4 workers land within `2.1e-07` of the one-process result, and every
+    rank ends bit-identical to every other. Wall time on a 4-core container
+    went 0.26s → 0.16s → 0.14s for 1, 2 and 4 workers.
+  - **One machine only.** No multi-node, no TCP rendezvous, no NCCL.
+  - `spawn()` warns when `OMP_NUM_THREADS` and friends are unset: measured on
+    the same box, four workers took 1.8s with `OMP_NUM_THREADS=1` and 11.0s
+    without — slower than one worker, because sixteen BLAS threads contended
+    over four cores.
+- New examples: `examples/mixed_precision.py`, `examples/onnx_export.py` and
+  `examples/distributed_training.py`, plus `docs/scaling.md` covering all three.
+- CI now runs every docstring example (`pytest --doctest-modules everyo`), so
+  the documentation cannot drift away from the code it describes.
 - **Normalization layers**: `BatchNorm1D`, `BatchNorm2D` and `LayerNorm`.
   Batch normalization keeps running statistics for evaluation mode; layer
   normalization is batch-independent and behaves identically in both modes.
@@ -55,6 +105,10 @@ All notable changes to EveryO are recorded here. The format follows
 
 ### Fixed
 
+- Four docstring examples were wrong and had never been executed: `avg_pool2d`
+  and `AvgPool2D` called `.item()` on a four-element result, `causal_mask`
+  compared against `True` when NumPy returns `np.True_`, and `History.append`
+  was shown as returning nothing when it returns the record. All four now run.
 - **Moving a tensor no longer severs the autograd graph.** `.to()`, `.cpu()`,
   `.cuda()` and `.astype()` produced a tensor that reported
   `requires_grad=True` but had no edge back to its source, so

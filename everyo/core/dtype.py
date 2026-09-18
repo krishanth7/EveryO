@@ -16,6 +16,7 @@ from everyo.exceptions import EveryODTypeError
 
 __all__ = [
     "DTYPES",
+    "float16",
     "DEFAULT_FLOAT_DTYPE",
     "DEFAULT_INT_DTYPE",
     "float32",
@@ -28,6 +29,7 @@ __all__ = [
     "is_floating",
 ]
 
+float16: Final = np.float16
 float32: Final = np.float32
 float64: Final = np.float64
 int32: Final = np.int32
@@ -36,6 +38,7 @@ bool_: Final = np.bool_
 
 #: Mapping of the dtype names EveryO accepts to their NumPy equivalents.
 DTYPES: Final[dict[str, Any]] = {
+    "float16": np.float16,
     "float32": np.float32,
     "float64": np.float64,
     "int32": np.int32,

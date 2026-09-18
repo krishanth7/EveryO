@@ -16,6 +16,10 @@ permissions:
 # without depending on Tk/Tcl packages supplied by a runner image.
 env:
   MPLBACKEND: Agg
+  # everyo.distributed runs one process per worker. Without this, NumPy's BLAS
+  # starts a thread pool inside each of them and they contend over the runner's
+  # two cores -- which makes the distributed tests slow rather than parallel.
+  OMP_NUM_THREADS: "1"
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -61,6 +65,15 @@ jobs:
 
       - name: Run the test suite
         run: python -m pytest -q
+
+      # Every docstring example is executable. Running them keeps the
+      # documentation from drifting away from the code it describes. The ONNX
+      # exporter's examples need the optional 'onnx' package, so they run in
+      # the dedicated ONNX job below rather than being weakened to +SKIP here.
+      - name: Run the docstring examples
+        run: >-
+          python -m pytest --doctest-modules everyo -q
+          --ignore=everyo/serialization/onnx_export.py
 
   lint:
     name: ruff
@@ -111,7 +124,29 @@ jobs:
           python examples/linear_regression.py
           python examples/binary_classification.py
           python examples/save_and_load.py
+          python examples/mixed_precision.py
+          python examples/distributed_training.py
           python examples/cuda_example.py
+
+  onnx:
+    name: ONNX export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install with the ONNX extra
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,onnx]"
+      - name: Round-trip every supported layer through ONNX Runtime
+        run: python -m pytest tests/test_onnx.py -q
+      - name: Run the exporter's docstring examples
+        run: python -m pytest --doctest-modules everyo/serialization/onnx_export.py -q
+      - name: Run the export example
+        run: python examples/onnx_export.py
 
   build:
     name: Package build

@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from everyo.core import operations as ops
+from everyo.core.autocast import autocast_like
 from everyo.core.convolution import _pair, avg_pool2d, conv2d, max_pool2d
 from everyo.core.tensor import Tensor, as_tensor
 from everyo.exceptions import EveryOShapeError
@@ -79,7 +80,11 @@ class Linear(Module):
             )
         out = ops.matmul(value, self.weight)
         if self.use_bias:
-            out = ops.add(out, self.bias)
+            # Under autocast the matmul returns float16; casting the bias to
+            # match keeps the activation in reduced precision instead of letting
+            # NumPy promote the sum back to float32. Outside autocast this is a
+            # no-op and adds no graph node.
+            out = ops.add(out, autocast_like(self.bias))
         return out
 
     def get_config(self) -> dict[str, Any]:
@@ -292,7 +297,10 @@ class AvgPool2D(_Pool2D):
 
     Example:
         >>> import everyo as eo
-        >>> eo.AvgPool2D(2)(eo.ones(1, 4, 4, 1)).item()
+        >>> pooled = eo.AvgPool2D(2)(eo.ones(1, 4, 4, 1))
+        >>> pooled.shape
+        (1, 2, 2, 1)
+        >>> float(pooled.data[0, 0, 0, 0])
         1.0
     """
 
