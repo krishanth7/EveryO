@@ -193,6 +193,13 @@ representation. `quantize_dynamic(model)` returns an inference-only copy where
 each `Linear` layer is replaced by a per-output-channel `QuantizedLinear`.
 Activations stay floating point; no calibration dataset is required.
 
+## Profiling
+
+Use `with everyo.profiler.profile() as result:` around inference or training.
+Every module call is timed only while the context is active. `summary()`
+aggregates calls, while `export_chrome_trace()` produces a trace for Perfetto
+or Chrome DevTools. `record_function()` adds user-defined regions.
+
 ## Command line
 
 ```

@@ -146,7 +146,10 @@ class Module:
         raise NotImplementedError(f"{type(self).__name__} does not implement forward().")
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        return self.forward(*args, **kwargs)
+        from everyo.profiler import _module_scope
+
+        with _module_scope(type(self).__name__, args):
+            return self.forward(*args, **kwargs)
 
     # ------------------------------------------------------------------
     # Parameter access
