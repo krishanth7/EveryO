@@ -1,1 +1,20 @@
+# Controls the chooser shown at /issues/new/choose.
+#
+# Without contact links the chooser offers only the two issue forms, so a
+# reader with a usage question or — worse — a security vulnerability lands on
+# the public bug tracker. SUPPORT.md and REPOSITORY_RULES.md both say those go
+# elsewhere; these links make the chooser agree with them.
 blank_issues_enabled: true
+
+contact_links:
+  - name: Question, usage help or design discussion
+    url: https://github.com/krishanth7/EveryO/discussions
+    about: Ask how something works, or propose an idea before it is a concrete feature request.
+
+  - name: Report a security vulnerability (private)
+    url: https://github.com/krishanth7/EveryO/security/policy
+    about: Never open a public issue for a vulnerability. Report it privately and it will be handled under coordinated disclosure.
+
+  - name: Where to ask, and what to expect
+    url: https://github.com/krishanth7/EveryO/blob/main/SUPPORT.md
+    about: Support channels, response expectations and what counts as a good report.

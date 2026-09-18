@@ -1,5 +1,6 @@
 name: Feature request
 description: Suggest a capability EveryO should gain.
+title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: textarea
@@ -27,6 +28,10 @@ body:
         - Optimizers
         - Data loading
         - Training loop
+        - Mixed precision
+        - ONNX export
+        - Distributed training
+        - Serialization
         - CUDA / GPU
         - TensorFlow backend
         - Visualization
@@ -40,4 +45,5 @@ body:
     attributes:
       label: Roadmap
       options:
-        - label: I have checked the roadmap in README.md and this is not already listed.
+        - label: I have checked the [roadmap](https://github.com/krishanth7/EveryO/blob/main/README.md#-roadmap) and this is not already listed or shipped.
+          required: true

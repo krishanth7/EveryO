@@ -1,18 +1,40 @@
 name: Bug report
 description: Something in EveryO behaves incorrectly.
+title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to file a report. Please do not include
-        credentials, tokens or private data — EveryO never needs any.
+        Thanks for taking the time to file a report.
+
+        **Do not include credentials, tokens or private data.** EveryO never needs any,
+        so nothing it prints should contain them — but `everyo info` reports your
+        platform, so give it a glance before pasting.
+
+        Found a **security vulnerability**? Stop here and use the
+        [security policy](https://github.com/krishanth7/EveryO/security/policy) instead.
+        Please do not describe it in a public issue.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before filing
+      options:
+        - label: I searched the [existing issues](https://github.com/krishanth7/EveryO/issues?q=is%3Aissue) and this is not a duplicate.
+          required: true
+        - label: This is a bug, not a usage question. Questions belong in [Discussions](https://github.com/krishanth7/EveryO/discussions).
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
 
   - type: textarea
     id: what-happened
     attributes:
       label: What happened?
       description: What did you expect, and what did you get instead?
+      placeholder: |
+        I expected x.grad to be [4.], but it was None.
     validations:
       required: true
 
@@ -20,7 +42,9 @@ body:
     id: reproduction
     attributes:
       label: Minimal reproduction
-      description: The smallest script that shows the problem.
+      description: >-
+        The smallest script that shows the problem. Trim it until every line
+        left is needed to trigger the bug — that is usually where it is found.
       render: python
     validations:
       required: true
@@ -29,7 +53,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Paste the output of `everyo info`.
+      description: Paste the output of `everyo info`. It reports the version, Python, platform, NumPy and which optional backends are present.
       render: text
     validations:
       required: true
@@ -38,5 +62,5 @@ body:
     id: traceback
     attributes:
       label: Traceback
-      description: The full traceback, if there was one.
+      description: The full traceback, if there was one. Paste all of it rather than the last line.
       render: text
