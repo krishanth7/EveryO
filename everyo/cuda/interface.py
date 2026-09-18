@@ -25,6 +25,8 @@ from everyo.exceptions import EveryOCudaError
 __all__ = [
     "KERNEL_NAMES",
     "get_kernel",
+    "supports",
+    "unsupported_reason",
     "add",
     "multiply",
     "matmul",
@@ -87,6 +89,33 @@ def get_kernel(name: str) -> Callable[..., np.ndarray] | None:
     if name not in KERNEL_NAMES or not is_available():
         return None
     return globals()[name]
+
+
+def supports(name: str, *arrays: np.ndarray) -> bool:
+    """Return whether ``name`` can execute on CUDA without CPU fallback."""
+    if name not in KERNEL_NAMES or not is_available() or not _is_float32(*arrays):
+        return False
+    if name in ("add", "multiply"):
+        return len(arrays) == 2 and arrays[0].shape == arrays[1].shape
+    if name == "matmul":
+        return len(arrays) == 2 and arrays[0].ndim == arrays[1].ndim == 2
+    return len(arrays) == 1
+
+
+def unsupported_reason(name: str, *arrays: np.ndarray) -> str:
+    """Explain a dispatch miss in language suitable for tests and diagnostics."""
+    if name not in KERNEL_NAMES:
+        return f"CUDA backend does not implement operator {name!r}."
+    if not is_available():
+        return f"CUDA backend is unavailable: {unavailable_reason()}"
+    if not _is_float32(*arrays):
+        dtypes = ", ".join(sorted({str(np.asarray(a).dtype) for a in arrays}))
+        return f"CUDA operator {name!r} supports float32 only; received {dtypes}."
+    if name in ("add", "multiply"):
+        return f"CUDA operator {name!r} requires equal shapes (broadcasting is not implemented)."
+    if name == "matmul":
+        return "CUDA matmul currently supports two 2-D arrays only."
+    return f"CUDA operator {name!r} does not support these inputs."
 
 
 def add(a: np.ndarray, b: np.ndarray, *, strict: bool = False) -> np.ndarray:

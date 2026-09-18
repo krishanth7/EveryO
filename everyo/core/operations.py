@@ -97,16 +97,10 @@ def _result_device(tensors: Sequence[Tensor]) -> Device:
 
 
 def _dispatch(name: str, device: Device, *arrays: np.ndarray) -> np.ndarray:
-    """Run kernel ``name`` on the CUDA backend when possible, else on NumPy."""
-    if device.is_cuda:
-        from everyo.cuda import interface as cuda_interface
+    """Run an operation through the unified backend contract."""
+    from everyo.backends.operator_backend import dispatch
 
-        kernel = cuda_interface.get_kernel(name)
-        if kernel is not None:
-            return np.asarray(kernel(*arrays))
-    from everyo.backends import numpy_backend
-
-    return np.asarray(getattr(numpy_backend, name)(*arrays))
+    return dispatch(name, device, *arrays).value
 
 
 def _make(
