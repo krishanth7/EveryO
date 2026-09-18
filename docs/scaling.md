@@ -263,4 +263,16 @@ not.
 python examples/mixed_precision.py
 python examples/onnx_export.py
 OMP_NUM_THREADS=1 python examples/distributed_training.py
+
+## Multi-node TCP process groups
+
+`everyo.distributed_tcp` extends gradient collectives beyond one machine. Start
+a `TCPRendezvousServer` on rank zero, then call `init_tcp_process_group()` on
+every worker with a unique rank. The returned group's `all_reduce_mean()` is
+compatible with `average_gradients()`.
+
+The initial backend is CPU and synchronous. It is intended for trusted private
+networks and correctness-oriented experiments; traffic is not encrypted and
+there is no NCCL/RDMA acceleration. Put it behind a VPN or private cluster
+network, never expose the rendezvous port publicly.
 ```
