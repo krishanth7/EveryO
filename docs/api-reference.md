@@ -186,6 +186,13 @@ drop_last)`, `available_workers()`, `DistributedError`. Single machine only.
 `EveryOSerializationError`, `EveryOConfigurationError`, `EveryOBackendError`,
 `EveryOCudaError`, and `everyo.distributed.DistributedError`.
 
+## Quantization
+
+`everyo.quantization.quantize(array, axis=None)` creates a symmetric int8
+representation. `quantize_dynamic(model)` returns an inference-only copy where
+each `Linear` layer is replaced by a per-output-channel `QuantizedLinear`.
+Activations stay floating point; no calibration dataset is required.
+
 ## Command line
 
 ```
