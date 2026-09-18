@@ -134,13 +134,9 @@ def dispatch(operation: str, device: Device, *arrays: np.ndarray) -> DispatchRes
     """Execute an operator and report whether/why CPU fallback occurred."""
     requested = backend_for(device)
     if requested.supports(operation, *arrays):
-        return DispatchResult(
-            requested.execute(operation, *arrays), requested.name, requested.name
-        )
+        return DispatchResult(requested.execute(operation, *arrays), requested.name, requested.name)
 
     reason = requested.unsupported_reason(operation, *arrays)
     if not _NUMPY.supports(operation, *arrays):
         raise NotImplementedError(reason)
-    return DispatchResult(
-        _NUMPY.execute(operation, *arrays), requested.name, _NUMPY.name, reason
-    )
+    return DispatchResult(_NUMPY.execute(operation, *arrays), requested.name, _NUMPY.name, reason)
