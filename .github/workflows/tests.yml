@@ -67,9 +67,13 @@ jobs:
         run: python -m pytest -q
 
       # Every docstring example is executable. Running them keeps the
-      # documentation from drifting away from the code it describes.
+      # documentation from drifting away from the code it describes. The ONNX
+      # exporter's examples need the optional 'onnx' package, so they run in
+      # the dedicated ONNX job below rather than being weakened to +SKIP here.
       - name: Run the docstring examples
-        run: python -m pytest --doctest-modules everyo -q
+        run: >-
+          python -m pytest --doctest-modules everyo -q
+          --ignore=everyo/serialization/onnx_export.py
 
   lint:
     name: ruff
@@ -139,6 +143,8 @@ jobs:
           python -m pip install -e ".[dev,onnx]"
       - name: Round-trip every supported layer through ONNX Runtime
         run: python -m pytest tests/test_onnx.py -q
+      - name: Run the exporter's docstring examples
+        run: python -m pytest --doctest-modules everyo/serialization/onnx_export.py -q
       - name: Run the export example
         run: python examples/onnx_export.py
 

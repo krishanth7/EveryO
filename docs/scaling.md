@@ -23,8 +23,8 @@ model = eo.Sequential(eo.Linear(8, 4, seed=0), eo.ReLU(), eo.Linear(4, 1, seed=1
 with eo.autocast():
     output = model(eo.ones(3, 8))
 
-output.dtype                  # 'float16'
-model[0].weight.dtype         # 'float32'
+output.dtype  # 'float16'
+model[0].weight.dtype  # 'float32'
 ```
 
 The mechanism is a cast node, not a flag. When autocast is on, each floating
@@ -44,8 +44,9 @@ float32, nothing would ever underflow, and loss scaling would be theatre.
 def forward(model, batch):
     return model(batch)
 
+
 with eo.autocast():
-    with eo.autocast(False):      # a float32 island inside a float16 block
+    with eo.autocast(False):  # a float32 island inside a float16 block
         logits = sensitive_head(features)
 ```
 
@@ -83,9 +84,9 @@ for batch, targets in loader:
         predictions = model(batch)
     loss = criterion(predictions, targets)
 
-    scaler.backward(loss)          # scale, then backward
-    applied = scaler.step(optimizer)   # False when the step was skipped
-    scaler.update()                    # grow or shrink the scale
+    scaler.backward(loss)  # scale, then backward
+    applied = scaler.step(optimizer)  # False when the step was skipped
+    scaler.update()  # grow or shrink the scale
 ```
 
 `scaler.backward(loss)` is `scaler.scale(loss).backward()` with NumPy's overflow
@@ -185,7 +186,7 @@ from everyo.distributed import average_gradients, shard_indices, spawn
 
 
 def worker(group, inputs, targets):
-    model = build_model()                       # same seeds on every rank
+    model = build_model()  # same seeds on every rank
     optimizer = eo.SGD(model.parameters(), lr=0.05)
     rows = shard_indices(len(inputs), group.rank, group.world_size)
     xs, ys = eo.tensor(inputs[rows]), eo.tensor(targets[rows])
