@@ -110,8 +110,16 @@ def _make(
     operation: str,
     backward_fn: Any,
     device: Device | None = None,
+    attributes: dict[str, Any] | None = None,
 ) -> Tensor:
-    """Wrap ``data`` in a tensor, attaching a graph node when required."""
+    """Wrap ``data`` in a tensor, attaching a graph node when required.
+
+    ``attributes`` records the operation's non-tensor arguments on the node.
+    Backward does not use them -- each backward closure already captured what
+    it needs -- but they are the only record of, say, which axis a softmax ran
+    over, and :mod:`everyo.serialization.onnx_trace` re-expresses the graph
+    rather than differentiating it, so it needs them.
+    """
     data = np.asarray(data)
     device = _result_device(inputs) if device is None else device
     track = (
@@ -119,7 +127,7 @@ def _make(
         and backward_fn is not None
         and any(item.requires_grad for item in inputs)
     )
-    node = Node(operation, list(inputs), backward_fn) if track else None
+    node = Node(operation, list(inputs), backward_fn, attributes) if track else None
     return Tensor._wrap(data, device=device, node=node)
 
 
@@ -419,7 +427,7 @@ def power(a: Any, exponent: float) -> Tensor:
     def backward_fn(gradient: np.ndarray):
         return (gradient * exponent * np.power(value.data, exponent - 1.0),)
 
-    return _make(data, (value,), "power", backward_fn)
+    return _make(data, (value,), "power", backward_fn, attributes={"exponent": exponent})
 
 
 def exp(a: Any) -> Tensor:
@@ -477,7 +485,9 @@ def clip(a: Any, low: float, high: float) -> Tensor:
     def backward_fn(gradient: np.ndarray):
         return (gradient * mask,)
 
-    return _make(data, (value,), "clip", backward_fn)
+    return _make(
+        data, (value,), "clip", backward_fn, attributes={"low": float(low), "high": float(high)}
+    )
 
 
 # ----------------------------------------------------------------------
@@ -626,7 +636,9 @@ def sum(  # noqa: A001 - mirrors the NumPy name on purpose
         grad = _expand_for_reduction(np.asarray(gradient), shape, axes, keepdims)
         return (np.array(grad, copy=True),)
 
-    return _make(data, (value,), "sum", backward_fn)
+    return _make(
+        data, (value,), "sum", backward_fn, attributes={"axes": axes, "keepdims": keepdims}
+    )
 
 
 def mean(
@@ -646,7 +658,9 @@ def mean(
         grad = _expand_for_reduction(np.asarray(gradient), shape, axes, keepdims)
         return (np.array(grad, copy=True) / count,)
 
-    return _make(data, (value,), "mean", backward_fn)
+    return _make(
+        data, (value,), "mean", backward_fn, attributes={"axes": axes, "keepdims": keepdims}
+    )
 
 
 def _extremum(a: Any, axis: int | None, keepdims: bool, largest: bool) -> Tensor:
@@ -665,7 +679,7 @@ def _extremum(a: Any, axis: int | None, keepdims: bool, largest: bool) -> Tensor
         grad = _expand_for_reduction(np.asarray(gradient), shape, axes, keepdims)
         return (grad * mask,)
 
-    return _make(data, (value,), name, backward_fn)
+    return _make(data, (value,), name, backward_fn, attributes={"axes": axes, "keepdims": keepdims})
 
 
 def max(  # noqa: A001 - mirrors the NumPy name on purpose
@@ -707,7 +721,7 @@ def reshape(a: Any, shape: Sequence[int]) -> Tensor:
     def backward_fn(gradient: np.ndarray):
         return (np.asarray(gradient).reshape(original),)
 
-    return _make(data, (value,), "reshape", backward_fn)
+    return _make(data, (value,), "reshape", backward_fn, attributes={"shape": target})
 
 
 def transpose(a: Any, axes: Sequence[int] | None = None) -> Tensor:
@@ -726,7 +740,7 @@ def transpose(a: Any, axes: Sequence[int] | None = None) -> Tensor:
         grad = np.asarray(gradient)
         return (np.transpose(grad, None if inverse is None else tuple(inverse)),)
 
-    return _make(data, (value,), "transpose", backward_fn)
+    return _make(data, (value,), "transpose", backward_fn, attributes={"axes": order})
 
 
 def flatten(a: Any, start_dim: int = 0) -> Tensor:
@@ -767,7 +781,7 @@ def concatenate(tensors: Sequence[Any], axis: int = 0) -> Tensor:
             pieces.append(grad[tuple(selector)])
         return tuple(pieces)
 
-    return _make(data, values, "concatenate", backward_fn)
+    return _make(data, values, "concatenate", backward_fn, attributes={"axis": axis})
 
 
 def stack(tensors: Sequence[Any], axis: int = 0) -> Tensor:
@@ -797,7 +811,7 @@ def slice_(a: Any, index: Any) -> Tensor:
         np.add.at(grad, key, np.asarray(gradient))
         return (grad,)
 
-    return _make(data, (value,), "slice", backward_fn)
+    return _make(data, (value,), "slice", backward_fn, attributes={"key": key})
 
 
 # ----------------------------------------------------------------------
@@ -885,7 +899,7 @@ def softmax(a: Any, axis: int = -1) -> Tensor:
         weighted = np.sum(grad * data, axis=axis, keepdims=True)
         return (data * (grad - weighted),)
 
-    return _make(data, (value,), "softmax", backward_fn)
+    return _make(data, (value,), "softmax", backward_fn, attributes={"axis": axis})
 
 
 def log_softmax(a: Any, axis: int = -1) -> Tensor:
@@ -900,4 +914,4 @@ def log_softmax(a: Any, axis: int = -1) -> Tensor:
         grad = np.asarray(gradient)
         return (grad - probabilities * np.sum(grad, axis=axis, keepdims=True),)
 
-    return _make(data, (value,), "log_softmax", backward_fn)
+    return _make(data, (value,), "log_softmax", backward_fn, attributes={"axis": axis})

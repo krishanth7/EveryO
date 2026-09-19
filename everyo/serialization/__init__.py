@@ -16,6 +16,11 @@ from everyo.serialization.onnx_export import (
     onnx_available,
     run_onnx,
 )
+from everyo.serialization.onnx_trace import (
+    TRACEABLE_OPERATIONS,
+    export_onnx_traced,
+    trace_operations,
+)
 from everyo.serialization.save import build_manifest, save
 
 __all__ = [
@@ -32,5 +37,8 @@ __all__ = [
     "load_manifest",
     "onnx_available",
     "run_onnx",
+    "TRACEABLE_OPERATIONS",
+    "export_onnx_traced",
+    "trace_operations",
     "save",
 ]

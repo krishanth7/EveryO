@@ -67,13 +67,14 @@ jobs:
         run: python -m pytest -q
 
       # Every docstring example is executable. Running them keeps the
-      # documentation from drifting away from the code it describes. The ONNX
-      # exporter's examples need the optional 'onnx' package, so they run in
+      # documentation from drifting away from the code it describes. Both ONNX
+      # exporters' examples need the optional 'onnx' package, so they run in
       # the dedicated ONNX job below rather than being weakened to +SKIP here.
       - name: Run the docstring examples
         run: >-
           python -m pytest --doctest-modules everyo -q
           --ignore=everyo/serialization/onnx_export.py
+          --ignore=everyo/serialization/onnx_trace.py
 
   lint:
     name: ruff
@@ -143,10 +144,20 @@ jobs:
           python -m pip install -e ".[dev,onnx]"
       - name: Round-trip every supported layer through ONNX Runtime
         run: python -m pytest tests/test_onnx.py -q
-      - name: Run the exporter's docstring examples
-        run: python -m pytest --doctest-modules everyo/serialization/onnx_export.py -q
-      - name: Run the export example
-        run: python examples/onnx_export.py
+      # The tracing exporter is the only way recurrent and attention models
+      # reach ONNX, and every test in here re-runs the exported graph through
+      # ONNX Runtime rather than trusting the schema checker.
+      - name: Round-trip recurrent and attention models through ONNX Runtime
+        run: python -m pytest tests/test_onnx_trace.py -q
+      - name: Run both exporters' docstring examples
+        run: >-
+          python -m pytest --doctest-modules -q
+          everyo/serialization/onnx_export.py
+          everyo/serialization/onnx_trace.py
+      - name: Run the export examples
+        run: |
+          python examples/onnx_export.py
+          python examples/onnx_trace.py
 
   build:
     name: Package build
