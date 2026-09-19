@@ -53,6 +53,26 @@ All notable changes to EveryO are recorded here. The format follows
 
 ### Fixed
 
+- **`dynamic_batch` claimed a batch dimension that was not always there.**
+  A trace whose output reduces the batch away crashed with `IndexError` on a
+  scalar output, and a model reducing over axis 0 was exported declaring its
+  leading *feature* axis as `"batch"`. The array-level verification compares
+  values, so a wrong label in the signature slipped past it. The rewrite is now
+  applied only when the traced output really carries the batch on axis 0, and
+  the probe additionally checks that the output dimension scales with the batch.
+- **A model that refuses the probe batch aborted the export.** A forward pass is
+  free to validate `x.shape[0]`; that exception escaped `export_onnx_traced`
+  *after* the provisional dynamic-batch file had been written, leaving an
+  unverified graph on disk. It is now treated as a failed probe, which is what
+  it is, and the fixed-batch export is written instead.
+- **The `opset` argument accepted versions the emitter could not honour.** ONNX
+  moved `axes` from attribute to input at a different version for each
+  reduction — `ReduceSum` at 13, `ReduceMean`/`Max`/`Min` not until 18 — so
+  `opset=18` and `opset=12` both produced graphs `onnx.checker` rejected.
+  Reductions now emit against the requested schema (13 through 21 tested), and
+  an opset below 13 is refused with its reason: before 13, ONNX's `Softmax`
+  coerces its input to 2-D, so the graph would load, run, and quietly return
+  different numbers.
 - **Both ONNX exporters now pin the file's IR version** (9, the floor that
   `onnxruntime>=1.17` supports). Previously the stamp was whatever the installed
   `onnx` package defaulted to, which rises with each release; a build machine

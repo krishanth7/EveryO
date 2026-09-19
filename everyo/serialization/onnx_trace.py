@@ -70,6 +70,7 @@ from everyo.nn.module import Module
 from everyo.serialization.onnx_export import DEFAULT_OPSET, _require_onnx
 
 __all__ = [
+    "MINIMUM_OPSET",
     "TRACEABLE_OPERATIONS",
     "export_onnx_traced",
     "trace_operations",
@@ -104,20 +105,38 @@ _DIRECT: dict[str, str] = {
     "tanh": "Tanh",
 }
 
-#: Reductions whose ``axes`` is an *attribute* at the default opset.
+#: Reductions other than ``sum``, and their ONNX operator names.
 #:
-#: ONNX moved this from attribute to input at different versions per operator:
-#: ``ReduceSum`` at opset 13, but ``ReduceMean``/``ReduceMax``/``ReduceMin`` not
-#: until opset 18. At opset 17 they therefore disagree, and getting this wrong
-#: produces a graph that the checker accepts and ONNX Runtime rejects.
-_REDUCE_AXES_AS_ATTRIBUTE = {"mean": "ReduceMean", "max": "ReduceMax", "min": "ReduceMin"}
+#: ONNX moved ``axes`` from attribute to input at a *different version for each
+#: of these operators*: ``ReduceSum`` at opset 13, but ``ReduceMean``,
+#: ``ReduceMax`` and ``ReduceMin`` not until opset 18. Between 13 and 17 the two
+#: groups therefore disagree, and emitting the wrong form produces a graph that
+#: ``onnx.checker`` rejects outright. :func:`_emit` picks the form from the
+#: requested opset rather than assuming the default.
+_OTHER_REDUCTIONS = {"mean": "ReduceMean", "max": "ReduceMax", "min": "ReduceMin"}
+
+#: ``axes`` became an input to ReduceSum here.
+_REDUCE_SUM_AXES_INPUT_OPSET = 13
+
+#: ``axes`` became an input to the other reductions here.
+_REDUCE_AXES_INPUT_OPSET = 18
+
+#: The oldest opset this exporter will emit.
+#:
+#: Not an arbitrary floor. Before opset 13, ONNX's ``Softmax`` and
+#: ``LogSoftmax`` *coerce their input to 2-D* and normalise over the flattened
+#: trailing dimensions, which is not what EveryO's softmax computes on a 3-D or
+#: 4-D tensor. Emitting a ``Softmax`` node against those schemas would produce a
+#: graph that loads and runs and quietly returns different numbers -- the worst
+#: possible outcome -- so the exporter refuses instead.
+MINIMUM_OPSET = 13
 
 #: Every operation the tracer can translate.
 TRACEABLE_OPERATIONS: tuple[str, ...] = tuple(
     sorted(
         {
             *_DIRECT,
-            *_REDUCE_AXES_AS_ATTRIBUTE,
+            *_OTHER_REDUCTIONS,
             "clip",
             "concatenate",
             "log_softmax",
@@ -230,6 +249,7 @@ def _emit(
     parents: tuple[Tensor, ...],
     out_shape: tuple[int, ...],
     graph: _TracedGraph,
+    opset: int,
 ) -> str:
     """Emit the ONNX node(s) for one traced operation and return its output."""
     if operation in _DIRECT:
@@ -261,25 +281,18 @@ def _emit(
         high = graph.constant(np.asarray(attributes["high"], dtype=np.float32), "clip_high")
         return graph.node("Clip", [inputs[0], low, high], "clip")
 
-    if operation == "sum":
+    if operation == "sum" or operation in _OTHER_REDUCTIONS:
+        op_type = "ReduceSum" if operation == "sum" else _OTHER_REDUCTIONS[operation]
+        threshold = _REDUCE_SUM_AXES_INPUT_OPSET if operation == "sum" else _REDUCE_AXES_INPUT_OPSET
         axes = _as_axes_list(attributes.get("axes"), len(parents[0].shape))
-        axes_input = graph.constant(np.asarray(axes, dtype=np.int64), "reduce_axes", np.int64)
-        return graph.node(
-            "ReduceSum",
-            [inputs[0], axes_input],
-            "reduce_sum",
-            keepdims=1 if attributes.get("keepdims") else 0,
-        )
+        keepdims = 1 if attributes.get("keepdims") else 0
 
-    if operation in _REDUCE_AXES_AS_ATTRIBUTE:
-        axes = _as_axes_list(attributes.get("axes"), len(parents[0].shape))
-        return graph.node(
-            _REDUCE_AXES_AS_ATTRIBUTE[operation],
-            [inputs[0]],
-            operation,
-            axes=axes,
-            keepdims=1 if attributes.get("keepdims") else 0,
-        )
+        if opset >= threshold:
+            axes_input = graph.constant(np.asarray(axes, dtype=np.int64), "reduce_axes", np.int64)
+            return graph.node(
+                op_type, [inputs[0], axes_input], f"reduce_{operation}", keepdims=keepdims
+            )
+        return graph.node(op_type, [inputs[0]], f"reduce_{operation}", axes=axes, keepdims=keepdims)
 
     if operation == "slice":
         starts, ends, axes, steps = _slice_parameters(attributes["key"], parents[0].shape)
@@ -402,7 +415,10 @@ def export_onnx_traced(
             is recorded, so it should be representative rather than empty.
         input_name: Name of the graph input.
         output_name: Name of the graph output.
-        opset: ONNX opset version to target.
+        opset: ONNX opset version to target. Must be at least
+            :data:`MINIMUM_OPSET`; reductions are emitted against the schema
+            that version actually defines, since ONNX moved ``axes`` from
+            attribute to input at a different version for each of them.
         model_name: Graph name recorded in the file.
         dynamic_batch: Rewrite the batch dimension to be symbolic, and verify
             that rewrite against a second batch size before writing. When the
@@ -425,6 +441,16 @@ def export_onnx_traced(
             "behaviour (dropout sampling, batch norm on batch statistics), so "
             "call model.eval() first and the exported graph will match what you "
             "get back from the model."
+        )
+
+    if opset < MINIMUM_OPSET:
+        raise EveryOSerializationError(
+            f"The tracing exporter targets opset {MINIMUM_OPSET} or newer, but "
+            f"{opset} was requested. Before opset {MINIMUM_OPSET}, ONNX's "
+            "Softmax and LogSoftmax coerce their input to 2-D and normalise "
+            "over the flattened trailing dimensions, which is not what EveryO "
+            "computes. The resulting graph would load, run, and return "
+            "different numbers, so it is refused rather than written."
         )
 
     example = np.ascontiguousarray(example_input, dtype=np.float32)
@@ -458,6 +484,7 @@ def export_onnx_traced(
             node.parents,
             tensor.shape,
             graph,
+            opset,
         )
 
     if not graph.nodes:
@@ -468,7 +495,23 @@ def export_onnx_traced(
     batch = int(example.shape[0])
     in_dims: list[Any] = list(example.shape)
     out_dims: list[Any] = list(output.shape)
-    if dynamic_batch:
+
+    # A symbolic batch is only meaningful if the *output* still has a batch on
+    # axis 0. A model that reduces the batch away (a scalar loss) or moves it
+    # (a transpose) does not, and labelling its leading dimension "batch"
+    # writes a signature that does not describe the graph. The array-level
+    # check below compares values, so it would not catch a wrong label.
+    output_carries_batch = bool(output.shape) and int(output.shape[0]) == batch
+    dynamic = dynamic_batch and output_carries_batch
+    if dynamic_batch and not output_carries_batch:
+        _LOGGER.info(
+            "The traced output does not have the batch on axis 0 (input batch %d, "
+            "output shape %s), so the graph is exported with fixed shapes.",
+            batch,
+            tuple(output.shape),
+        )
+
+    if dynamic:
         _rewrite_batch_dimension(graph, numpy_helper, batch)
         in_dims[0] = "batch"
         out_dims[0] = "batch"
@@ -490,7 +533,7 @@ def export_onnx_traced(
     destination.parent.mkdir(parents=True, exist_ok=True)
     onnx.save(proto, str(destination))
 
-    if dynamic_batch and not _batch_rewrite_holds(model, example, destination, input_name):
+    if dynamic and not _batch_rewrite_holds(model, example, destination, input_name):
         # The heuristic did not survive a second batch size. A graph pinned to
         # the traced batch is still a correct graph, so fall back rather than
         # ship one that silently misbehaves off the traced shape.
@@ -599,10 +642,25 @@ def _batch_rewrite_holds(model: Module, example: np.ndarray, path: Path, input_n
             _LOGGER.debug("dynamic_batch verification could not run: %s", error)
             return False
 
-    with autograd.no_grad():
-        expected = model(Tensor(doubled))
+    # The model itself can refuse the doubled batch -- a forward pass is free to
+    # validate x.shape[0]. That is a failed probe, not an error to propagate:
+    # letting it escape would abort the export *after* the provisional dynamic
+    # file was written, leaving an unverified graph on disk.
+    try:
+        with autograd.no_grad():
+            expected = model(Tensor(doubled))
+    except Exception as error:  # noqa: BLE001 - the model refusing is an answer
+        _LOGGER.debug("the model itself rejected the probe batch: %s", error)
+        return False
+
     if isinstance(expected, tuple):
         expected = expected[0]
+
+    # The batch has to have actually doubled. Comparing values alone would
+    # accept a model whose output does not scale with the batch.
+    if not expected.shape or int(expected.shape[0]) != doubled.shape[0]:
+        return False
+
     return bool(
         np.asarray(exported).shape == tuple(expected.shape)
         and np.allclose(np.asarray(exported), expected.data, rtol=1e-4, atol=1e-5)

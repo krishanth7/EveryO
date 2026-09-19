@@ -253,3 +253,104 @@ def test_each_traced_operation_matches_onnx_runtime(operation, build, tmp_path):
     exported, expected = _roundtrip(Wrapper(), array, tmp_path / f"{operation}.onnx")
     assert exported.shape == expected.shape
     np.testing.assert_allclose(exported, expected, rtol=1e-5, atol=1e-6)
+
+
+class TestDynamicBatchOnlyWhenItIsTrue:
+    """`dynamic_batch` must not label a dimension "batch" that is not one.
+
+    The array-level verification compares *values*, so a wrong label in the
+    graph signature slips past it. These cases are about the declared shape.
+    """
+
+    def test_a_scalar_output_exports_instead_of_crashing(self, tmp_path):
+        """A model that reduces to a scalar has no output dimensions at all."""
+
+        class ScalarOutput(eo.Module):
+            def forward(self, x):
+                return eo.sum(x)
+
+        array = np.ones((2, 3), dtype=np.float32)
+        exported, expected = _roundtrip(ScalarOutput(), array, tmp_path / "model.onnx")
+        np.testing.assert_allclose(exported, expected, rtol=1e-6)
+
+    def test_an_output_that_reduces_the_batch_away_is_declared_statically(self, tmp_path):
+        """Reducing over axis 0 leaves the feature axis first, not the batch."""
+
+        class ReduceBatch(eo.Module):
+            def forward(self, x):
+                return eo.sum(x, axis=0)
+
+        array = np.ones((2, 3), dtype=np.float32)
+        destination = tmp_path / "model.onnx"
+        exported, expected = _roundtrip(ReduceBatch(), array, destination)
+        np.testing.assert_allclose(exported, expected, rtol=1e-6)
+
+        dimension = onnx.load(destination).graph.output[0].type.tensor_type.shape.dim[0]
+        assert dimension.dim_value == 3, "the leading output axis is features, not batch"
+        assert not dimension.dim_param
+
+    def test_a_model_that_refuses_the_probe_batch_falls_back(self, tmp_path):
+        """The model's own forward pass may reject the doubled batch.
+
+        That is a failed probe, not an error to propagate: letting it escape
+        would abort the export after the provisional dynamic file was already
+        written, leaving an unverified graph on disk.
+        """
+
+        class BatchPicky(eo.Module):
+            def __init__(self):
+                super().__init__()
+                self.inner = eo.Linear(3, 2, seed=0)
+
+            def forward(self, x):
+                if x.shape[0] != 2:
+                    raise ValueError("this model only accepts a batch of 2")
+                return self.inner(x)
+
+        array = np.ones((2, 3), dtype=np.float32)
+        destination = tmp_path / "model.onnx"
+        exported, expected = _roundtrip(BatchPicky(), array, destination)
+        np.testing.assert_allclose(exported, expected, rtol=1e-5, atol=1e-6)
+
+        dimension = onnx.load(destination).graph.input[0].type.tensor_type.shape.dim[0]
+        assert dimension.dim_value == 2, "expected the fixed-batch fallback"
+
+
+class TestOpsetSelection:
+    """ONNX moved `axes` from attribute to input at a different version per
+    reduction: ReduceSum at 13, but ReduceMean/Max/Min not until 18. Emitting
+    the wrong form is rejected outright by `onnx.checker`.
+    """
+
+    @pytest.mark.parametrize("opset", [13, 17, 18, 21])
+    @pytest.mark.parametrize("reduction", ["sum", "mean", "max", "min"])
+    def test_reductions_emit_against_the_requested_schema(self, reduction, opset, tmp_path):
+        class Reducer(eo.Module):
+            def forward(self, x):
+                return getattr(eo, reduction)(x, axis=1, keepdims=True)
+
+        array = np.random.default_rng(7).standard_normal((2, 3, 4)).astype(np.float32)
+        model = Reducer()
+        model.eval()
+        destination = tmp_path / f"{reduction}_{opset}.onnx"
+        eo.export_onnx_traced(model, destination, example_input=array, opset=opset)
+
+        np.testing.assert_allclose(
+            eo.run_onnx(destination, array), _reference(model, array), rtol=1e-5, atol=1e-6
+        )
+
+    def test_an_opset_older_than_the_emitter_is_refused(self, tmp_path):
+        """Pre-13 Softmax coerces to 2-D, so the graph would run and be wrong.
+
+        Refusing beats writing a file that loads, runs, and quietly returns
+        different numbers.
+        """
+        model = eo.MultiHeadAttention(8, 2, seed=0)
+        model.eval()
+        with pytest.raises(EveryOSerializationError, match="opset 13 or newer"):
+            eo.export_onnx_traced(
+                model,
+                tmp_path / "model.onnx",
+                example_input=np.zeros((1, 2, 8), dtype=np.float32),
+                opset=12,
+            )
