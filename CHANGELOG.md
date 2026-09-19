@@ -8,6 +8,67 @@ All notable changes to EveryO are recorded here. The format follows
 
 ### Added
 
+- **A tracing ONNX exporter**: `eo.export_onnx_traced`, plus `eo.trace_operations`
+  and `eo.TRACEABLE_OPERATIONS`. This closes the last open roadmap item, and
+  with it every recurrent and attention model can now reach ONNX.
+  - `export_onnx` walks a model layer by layer, so it can only export layers it
+    has been taught, and an LSTM is not one: there is no ONNX node meaning
+    "EveryO LSTM". Its meaning is ~140 primitives in an order that exists only
+    once the layer has run. The tracer runs the model and exports the graph the
+    run leaves behind, so it never needs to know what an LSTM *is* — it sees
+    adds, matmuls, sigmoids and slices.
+  - Verified by re-running each export through ONNX Runtime and comparing
+    against EveryO: `RNN` 45 ops / 3.0e-07, `LSTM` 141 / 1.2e-07, `GRU` 165 /
+    1.2e-07, `MultiHeadAttention` 21 / 4.8e-07, `TransformerEncoderBlock` 46 /
+    1.2e-06, `TransformerEncoder` (2 layers) 101 / 8.3e-07.
+  - `dynamic_batch=True` rewrites the batch dimension to be symbolic **and then
+    checks that rewrite against a second batch size before writing the file**,
+    falling back to the traced batch when it does not hold. Recurrent models
+    take that fallback: they fold batch and time into one reshape dimension, so
+    the leading dimension is not the batch. A graph honest about accepting one
+    batch size beats one that claims to accept any and then miscomputes.
+  - Tracing flattens control flow, and that is documented rather than hidden:
+    an LSTM traced at 2/4/8 timesteps yields 39/73/141 operations.
+  - `everyo.core.autograd.Node` now carries an `attributes` dict recording each
+    operation's non-tensor arguments. Backward never reads it; without it the
+    axis a softmax reduced over is lost the moment the call returns, and a
+    consumer that re-expresses the graph rather than differentiating it cannot
+    work. New module, `everyo.serialization.onnx_trace`.
+- **Transfer-counting tests for GPU-resident tensors**
+  (`tests/test_cuda_resident_transfers.py`). The residency feature's whole point
+  — that a chain uploads once instead of once per call — was untested on any
+  machine without a GPU, which is every machine in CI. That claim is about *how
+  many times the boundary is crossed*, which needs no GPU to check, so a
+  stand-in for the native extension now counts every crossing: a 10-operation
+  chain crosses 3 times, not 30. This does **not** test the CUDA kernels;
+  `tests/test_cuda_resident.py` does, and it still skips without hardware.
+- **A cross-process multi-node test**. The TCP all-reduce was exercised between
+  threads in one process, which cannot distinguish a working wire protocol from
+  ranks sharing memory. It now also runs across two spawned interpreters that
+  share nothing but the socket. Still one host — no second machine is available
+  in CI, and the README says so.
+- `quantize_dynamic`, `quantize`, `profile`, `record_function` and `Profiler` are
+  now importable from the top-level `everyo` namespace, like every other
+  feature, instead of only from their submodules.
+
+### Fixed
+
+- **Both ONNX exporters now pin the file's IR version** (9, the floor that
+  `onnxruntime>=1.17` supports). Previously the stamp was whatever the installed
+  `onnx` package defaulted to, which rises with each release; a build machine
+  with a recent `onnx` wrote files that a supported `onnxruntime` refuses to
+  load with "Unsupported model IR version". A newer runtime accepts exactly what
+  an older one rejects, so loading the file on the build machine cannot detect
+  this — the test reads the stamp out of the proto instead.
+- **CI ran `--doctest-modules` over the new tracing exporter without `onnx`
+  installed**, which fails. The base matrix now ignores it exactly as it already
+  ignored `onnx_export.py`, and both exporters' doctests run in the ONNX job.
+
+### Changed
+
+- `export_onnx`'s refusal for a recurrent or attention layer now points at
+  `export_onnx_traced` instead of stating that EveryO has no tracing exporter.
+
 - **Mixed-precision training**: `eo.autocast` and `eo.GradScaler`. Only
   `matmul` and `conv2d` are cast to float16; reductions, exponentials,
   normalization and losses stay in float32. Autocast works by inserting a

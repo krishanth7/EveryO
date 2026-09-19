@@ -57,6 +57,9 @@ benchmark_results/
 *.pfx
 id_rsa*
 id_ed25519*
+# Written by examples/profiling.py when it runs.
+everyo-trace.json
+
 credentials.json
 secrets.json
 .netrc

@@ -105,19 +105,29 @@ class Node:
         parents: Input tensors that participated in the operation.
         backward_fn: Callable mapping the output gradient to a tuple of
             gradients, one per parent (``None`` for parents that do not need one).
+        attributes: The operation's non-tensor arguments -- the axis a softmax
+            reduced over, the permutation a transpose applied, the key an index
+            selected with. Backward never reads them; they exist because those
+            arguments are otherwise lost the moment the forward call returns,
+            and a consumer of the graph that wants to *re-express* the
+            operation rather than differentiate it needs them. The tracing ONNX
+            exporter is the first such consumer. Empty for operations that take
+            no arguments beyond their tensors.
     """
 
-    __slots__ = ("operation", "parents", "backward_fn")
+    __slots__ = ("operation", "parents", "backward_fn", "attributes")
 
     def __init__(
         self,
         operation: str,
         parents: Sequence[Tensor],
         backward_fn: Callable[[np.ndarray], Sequence[np.ndarray | None]],
+        attributes: dict[str, Any] | None = None,
     ) -> None:
         self.operation = operation
         self.parents = tuple(parents)
         self.backward_fn = backward_fn
+        self.attributes: dict[str, Any] = dict(attributes) if attributes else {}
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"Node(operation={self.operation!r}, parents={len(self.parents)})"

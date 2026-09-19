@@ -135,13 +135,24 @@ from everyo.precision import (
     autocast_dtype,
     is_autocast_enabled,
 )
+from everyo.profiler import Profiler, profile, record_function
+from everyo.quantization import (
+    QuantizationError,
+    QuantizedArray,
+    QuantizedLinear,
+    quantize,
+    quantize_dynamic,
+)
 from everyo.serialization import (
+    TRACEABLE_OPERATIONS,
     export_onnx,
+    export_onnx_traced,
     inspect_archive,
     load,
     onnx_available,
     run_onnx,
     save,
+    trace_operations,
 )
 from everyo.training import (
     Callback,
@@ -310,6 +321,17 @@ __all__ = [
     "load",
     "onnx_available",
     "run_onnx",
+    "TRACEABLE_OPERATIONS",
+    "export_onnx_traced",
+    "trace_operations",
+    "Profiler",
+    "profile",
+    "record_function",
+    "QuantizationError",
+    "QuantizedArray",
+    "QuantizedLinear",
+    "quantize",
+    "quantize_dynamic",
     "save",
     # visualization
     "plot_accuracy",

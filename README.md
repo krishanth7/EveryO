@@ -52,10 +52,11 @@ BUILD  →  TRAIN  →  MEASURE  →  UNDERSTAND  →  ACCELERATE
 
 ### What it is not
 
-EveryO is **not a production training runtime**. It will not out-perform a tuned framework on a
-large model, it has no GPU-resident tensors yet, and its distributed training runs on one machine.
-Those limits are stated where they apply rather than left for you to discover — see
-[Roadmap](#-roadmap) for what is genuinely unbuilt.
+EveryO is **not a production training runtime**. The roadmap is finished, but "implemented" is not
+"battle-tested": it will not out-perform a tuned framework on a large model, its CUDA path needs a
+GPU that this project's CI does not have, and multi-node training has been exercised across
+processes rather than across machines. Those limits are stated where they apply rather than left
+for you to discover — the [Roadmap](#-roadmap) says exactly what was verified and how.
 
 ### How to trust it
 
@@ -210,16 +211,20 @@ LSTM  7.71e-06     ~560,000x larger
 | **Visualization** | every chart on this page, headless-safe |
 | **CLI** | `everyo info · doctor · benchmark · test · demo` |
 | **Mixed precision** | `autocast` + `GradScaler` with fp32 master weights and dynamic loss scaling |
-| **ONNX export** | `export_onnx` — verified against ONNX Runtime, not just against the schema checker |
-| **Distributed** | single-machine data parallelism: gradient all-reduce across processes |
-| **CUDA** | 5 hand-written kernels + pybind11 bindings, with automatic CPU fallback |
+| **ONNX export** | `export_onnx` layer-by-layer, plus `export_onnx_traced` for recurrent and attention models — both verified against ONNX Runtime, not just the schema checker |
+| **Quantization** | `quantize_dynamic` — post-training int8 weights with per-output-channel scales, no calibration set needed |
+| **Profiling** | `profile()` — nested module timings with shapes, and Chrome trace export |
+| **Distributed** | data parallelism on one machine, or across machines with `init_tcp_process_group` |
+| **CUDA** | 5 hand-written kernels + pybind11 bindings, GPU-resident tensors, automatic CPU fallback |
 | **TensorFlow** | optional cross-checks and a Keras reference model |
 
-> **Experimental** — CUDA dispatch for tensors on a `cuda` device: kernels are correct and checked against NumPy,
-> but each call still copies to the device and back, so measure before relying on it.
+> **Requires a GPU** — the CUDA paths (`eo.cuda.*`, including GPU-resident tensors) need the
+> native extension built against a real NVIDIA toolchain. Everything else on this page runs on CPU.
+> The kernels are checked against NumPy **on hardware that has a GPU**; that check skips in this
+> project's CI, which has none. See the [roadmap](#-roadmap) for exactly what is and is not verified.
 >
-> **Planned** — GPU-resident tensors, model quantization, profiling tools, multi-node distributed training.
-> These are *not* implemented; see the [roadmap](#-roadmap).
+> **Still array-in, array-out** — `eo.cuda.add` and friends copy to the device and back on every call.
+> Use `eo.cuda.to_device` when you want a chain of operations to stay resident.
 
 ---
 
@@ -337,9 +342,46 @@ largest absolute diff ... 1.144e-05      float32 rounding, not a semantic gap
 predictions that agree .. 100.0%
 ```
 
-Recurrent and attention layers are **not** exported — they unroll into primitive chains that need a
-tracing exporter. Passing one raises an error that names the layer instead of writing a graph that
-quietly computes something else.
+Recurrent and attention layers have no single ONNX equivalent — an LSTM is a *program*, not a
+formula, so a layer-by-layer walk has nothing to map it onto. Those go through the **tracing
+exporter** instead, which runs the model once and exports the graph it leaves behind:
+
+```python
+import numpy as np, everyo as eo
+
+model = eo.LSTM(16, 32, seed=0)
+model.eval()
+example = np.random.randn(4, 8, 16).astype(np.float32)
+
+eo.export_onnx_traced(model, "lstm.onnx", example_input=example)
+np.abs(eo.run_onnx("lstm.onnx", example) - model(eo.tensor(example)).data).max()
+```
+
+Measured here, every model re-run through ONNX Runtime and compared against EveryO:
+
+```
+model                       traced ops   max |diff| vs ONNX Runtime
+---------------------------------------------------------------------
+RNN                                 45   3.02e-07
+LSTM                               141   1.19e-07
+GRU                                165   1.19e-07
+MultiHeadAttention                  21   4.77e-07
+TransformerEncoderBlock             46   1.19e-06
+TransformerEncoder (2 layers)      101   8.34e-07
+```
+
+`eo.trace_operations(model, example)` shows the decomposition without exporting anything.
+
+> **What tracing costs.** A trace records one path through the model. The timestep loop is
+> *flattened*, so a graph traced at 8 steps is a graph for 8 steps — not a general-length model.
+> Shapes are baked in too; `dynamic_batch=True` recovers the batch dimension where it can, and
+> **verifies that against a second batch size before writing the file**, falling back to the traced
+> batch when the rewrite does not hold. Recurrent models take that fallback, because they fold batch
+> and time into one dimension. A graph that is honest about accepting one batch size beats a graph
+> that claims to accept any and then miscomputes.
+
+Prefer `export_onnx` where it applies: it emits a real `Conv` node rather than the primitives a
+convolution decomposes into, and nothing about it depends on the shapes you traced with.
 
 ### Data-parallel training
 
@@ -355,10 +397,56 @@ training — and the example checks that instead of asserting it:
        4          1024       0.14     2.09e-07          True
 ```
 
-> **One machine only.** No multi-node, no TCP rendezvous, no NCCL. And set `OMP_NUM_THREADS=1`
-> first: on the same 4-core box, four workers took **1.8s** with it set and **11.0s** without —
-> slower than not parallelising at all, because sixteen BLAS threads were fighting over four cores.
-> `spawn()` warns when it looks unset.
+Across machines, swap the shared-memory group for the TCP one — rank 0 runs the rendezvous server
+and every rank connects to it:
+
+```python
+from everyo.distributed_tcp import TCPRendezvousServer, init_tcp_process_group
+
+server = TCPRendezvousServer("0.0.0.0", 29500, world_size=4).start()  # on rank 0 only
+group = init_tcp_process_group(host, 29500, rank=rank, world_size=4)  # on every rank
+group.all_reduce_mean(gradients)
+```
+
+> **Tested across processes, not across machines.** The all-reduce is exercised between two
+> separate OS processes over real TCP sockets — different interpreters, nothing shared but the
+> wire, which is the part that has to hold for ranks on different hosts. A *second physical
+> machine* is not something this project's CI has, so that step is unverified. There is also no
+> NCCL and no encryption: the protocol assumes a trusted network.
+>
+> Set `OMP_NUM_THREADS=1` first: on the same 4-core box, four workers took **1.8s** with it set and
+> **11.0s** without — slower than not parallelising at all, because sixteen BLAS threads were
+> fighting over four cores. `spawn()` warns when it looks unset.
+
+### Quantization and profiling
+
+`quantize_dynamic` replaces a model's `Linear` weights with int8 values and one symmetric scale per
+output channel. Activations stay in floating point, so no calibration set is needed and the change
+is inference-only:
+
+```python
+compact = eo.quantize_dynamic(model)
+```
+
+On a `64 -> 128 -> 10` network the int8 model changed the largest output by **0.0222** and agreed
+with fp32 on **100%** of argmax predictions. Be clear about what that buys: int8 here is a *size and
+fidelity* trade, not a faster kernel — the arithmetic still runs through NumPy in float.
+
+The profiler is opt-in and nests with your modules:
+
+```python
+with eo.profile() as run:
+    model(batch)
+run.summary()  # per-module calls, total/mean/max ms
+run.export_chrome_trace("trace.json")  # open in chrome://tracing
+```
+
+```
+name          calls   total_ms   mean_ms
+Sequential        1      0.294     0.294
+Linear            2      0.203     0.101
+ReLU              1      0.042     0.042
+```
 
 ```bash
 python examples/mixed_precision.py
@@ -384,24 +472,43 @@ EveryO is a readable reference implementation — when a tuned runtime beats it,
 
 ## 🗺 Roadmap
 
-Not implemented yet — contributions very welcome on any of these:
+**Every item on this roadmap is now implemented.**
 
-- [x] ~~Convolution and pooling layers~~ — **shipped**: `Conv2D`, `MaxPool2D`, `AvgPool2D`
-- [x] ~~Batch / layer normalization~~ — **shipped**: `BatchNorm1D`, `BatchNorm2D`, `LayerNorm`
-- [x] ~~Recurrent layers, attention, transformer blocks~~ — **shipped**: `RNN`, `LSTM`, `GRU`, `MultiHeadAttention`, `TransformerEncoder`
-- [x] ~~Mixed-precision training~~ — **shipped**: `autocast`, `GradScaler`
-- [x] ~~ONNX interoperability~~ — **shipped**: `export_onnx`, verified against ONNX Runtime
-- [x] ~~Distributed training~~ — **shipped**: single-machine data parallelism
-- [ ] GPU-resident tensors (removing per-call transfers)
-- [ ] Multi-node distributed training (today's implementation is one machine only)
-- [ ] Model quantization · profiling tools
-- [ ] A tracing ONNX exporter, so recurrent and attention layers can be exported too
+- [x] ~~Convolution and pooling layers~~ — `Conv2D`, `MaxPool2D`, `AvgPool2D`
+- [x] ~~Batch / layer normalization~~ — `BatchNorm1D`, `BatchNorm2D`, `LayerNorm`
+- [x] ~~Recurrent layers, attention, transformer blocks~~ — `RNN`, `LSTM`, `GRU`, `MultiHeadAttention`, `TransformerEncoder`
+- [x] ~~Mixed-precision training~~ — `autocast`, `GradScaler`
+- [x] ~~ONNX interoperability~~ — `export_onnx`, verified against ONNX Runtime
+- [x] ~~Distributed training~~ — data parallelism with gradient all-reduce
+- [x] ~~GPU-resident tensors (removing per-call transfers)~~ — `eo.cuda.to_device`
+- [x] ~~Multi-node distributed training~~ — `init_tcp_process_group`
+- [x] ~~Model quantization · profiling tools~~ — `quantize_dynamic`, `profile`
+- [x] ~~A tracing ONNX exporter~~ — `export_onnx_traced`
+
+### What "implemented" means for each one
+
+A finished list is only useful if it says what was actually checked, so:
+
+| Item | Verified how | Not verified |
+|---|---|---|
+| **Tracing ONNX exporter** | Six recurrent/attention models exported and re-run through ONNX Runtime; outputs agree with EveryO to `≤1.2e-06` | — |
+| **Quantization** | int8 weights round-trip; argmax agreement with fp32 is 100% on the test model, max output drift `0.0222` | Speedup: int8 here is a *size and fidelity* change, not a faster kernel |
+| **Profiling** | Nested module timings, shapes and Chrome trace export, all asserted | — |
+| **Multi-node training** | All-reduce across two **separate OS processes** over real TCP sockets — different interpreters, nothing shared but the wire | Two physically separate **machines**. No second host is available in CI |
+| **GPU-resident tensors** | Transfer *counting*: a 10-operation chain crosses the host/device boundary 3 times, not 30 | The CUDA kernels themselves. **No GPU, no CUDA toolkit and no NVIDIA driver in this environment** — `tests/test_cuda_resident.py` covers that and skips here |
+
+The GPU row is the one to read carefully. What is proven on CPU is the *design*
+claim — that residency removes per-call transfers — using a stand-in for the
+native extension that counts every crossing. What is **not** proven anywhere in
+CI is that the kernels compute the right answers on real hardware. Those tests
+exist and they skip. Nobody here has run them.
 
 ---
 
 ## 🤝 Contributing
 
-Good first issues are the roadmap items above, and every one of them is self-contained.
+The roadmap above is complete, so good first issues now come from
+[the issue tracker](../../issues) rather than from this page.
 
 ```bash
 ./scripts/setup.sh      # venv + dev install

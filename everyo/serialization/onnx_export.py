@@ -16,10 +16,17 @@ exported graph is faithful, not fast.
 
 **Scope.** This exporter covers the feed-forward layers, listed in
 :data:`SUPPORTED_LAYERS`. The recurrent layers, attention and the transformer
-blocks are *not* exported — they unroll into long chains of primitives that
-would need a tracing exporter rather than a layer-by-layer one, and shipping a
-half-correct translation of them would be worse than shipping none. Passing one
-raises :class:`~everyo.exceptions.EveryOSerializationError` naming the layer.
+blocks are *not* exported here — they unroll into long chains of primitives
+with no single ONNX equivalent, and a layer-by-layer walk has nothing to map
+them onto. Those go through :mod:`everyo.serialization.onnx_trace`, which runs
+the model and exports the graph it leaves behind. Passing one here raises
+:class:`~everyo.exceptions.EveryOSerializationError` naming the layer and
+pointing at the tracer.
+
+Prefer this exporter where it applies: it emits a real ``Conv`` node rather
+than the primitives a convolution decomposes into, and it needs no example
+input, so nothing about the export depends on the shapes or values you traced
+with.
 
 Padding is written out as explicit ``pads`` attributes computed by EveryO's own
 :func:`~everyo.core.convolution._resolve_padding`, not as ``auto_pad``, so a
@@ -304,10 +311,11 @@ def _export_layer(
         )
 
     raise EveryOSerializationError(
-        f"ONNX export does not support {kind}. Supported layers are: "
-        f"{', '.join(SUPPORTED_LAYERS)}. Recurrent layers, attention and the "
-        "transformer blocks unroll into primitive chains that need a tracing "
-        "exporter, which EveryO does not have yet."
+        f"ONNX export does not support {kind}. This layer-by-layer exporter "
+        f"handles: {', '.join(SUPPORTED_LAYERS)}. Recurrent layers, attention "
+        "and the transformer blocks unroll into primitive chains with no "
+        "single ONNX equivalent, so they go through the tracing exporter "
+        "instead: everyo.export_onnx_traced(model, path, example_input=...)."
     )
 
 
@@ -393,6 +401,12 @@ def export_onnx(
         producer_name="everyo",
         opset_imports=[helper.make_opsetid("", opset)],
     )
+    # Pin the IR version, or the stamp becomes whatever the installed onnx
+    # package defaults to and a supported onnxruntime refuses the file. See
+    # everyo.serialization.onnx_trace.IR_VERSION.
+    from everyo.serialization.onnx_trace import IR_VERSION
+
+    proto.ir_version = IR_VERSION
     onnx.checker.check_model(proto)
 
     destination = Path(path)
