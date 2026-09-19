@@ -29,8 +29,8 @@ automatic differentiation, layers, optimizers, the training loop, serialization 
 implemented here, on top of NumPy. It is not a wrapper around PyTorch, TensorFlow or JAX, and it
 does not call out to one at runtime.
 
-The point is legibility. The gradient engine is **251 lines**. The whole package is **~11,500 lines**
-across 65 focused modules. You can follow one number from `loss.backward()` through the graph walk,
+The point is legibility. The gradient engine is **261 lines**. The whole package is **~12,700 lines**
+across 70 focused modules. You can follow one number from `loss.backward()` through the graph walk,
 into a matrix multiply, and out to a hand-written CUDA kernel — reading real code the entire way.
 
 Legibility is worthless without correctness, so every differentiable operation is checked against
@@ -470,9 +470,12 @@ EveryO is a readable reference implementation — when a tuned runtime beats it,
 
 ---
 
-## 🗺 Roadmap
+## 🗺 Roadmap — **all shipped**
 
-**Every item on this roadmap is now implemented.**
+**Every item on this roadmap is finished. Nothing on it is outstanding.**
+
+The list below started as ten things EveryO could not do. All ten now ship, each
+with tests that check the behaviour rather than assert the feature exists.
 
 - [x] ~~Convolution and pooling layers~~ — `Conv2D`, `MaxPool2D`, `AvgPool2D`
 - [x] ~~Batch / layer normalization~~ — `BatchNorm1D`, `BatchNorm2D`, `LayerNorm`
@@ -484,6 +487,10 @@ EveryO is a readable reference implementation — when a tuned runtime beats it,
 - [x] ~~Multi-node distributed training~~ — `init_tcp_process_group`
 - [x] ~~Model quantization · profiling tools~~ — `quantize_dynamic`, `profile`
 - [x] ~~A tracing ONNX exporter~~ — `export_onnx_traced`
+
+**10 / 10 shipped.** The last four — GPU-resident tensors, multi-node training,
+quantization and profiling, and the tracing exporter — landed together and are
+covered below.
 
 ### What "implemented" means for each one
 
