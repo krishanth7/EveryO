@@ -6,6 +6,10 @@ All notable changes to EveryO are recorded here. The format follows
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.0] - 2026-09-19
+
 ### Added
 
 - **A tracing ONNX exporter**: `eo.export_onnx_traced`, plus `eo.trace_operations`
@@ -312,5 +316,6 @@ The first release: a working foundation rather than a complete framework.
 - The copyright line in `LICENSE` reads "EveryO contributors". A repository
   owner who wants their own name or organisation there should edit that line.
 
-[Unreleased]: https://github.com/krishanth7/EveryO/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/krishanth7/EveryO/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/krishanth7/EveryO/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/krishanth7/EveryO/releases/tag/v0.1.0
