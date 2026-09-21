@@ -4,10 +4,12 @@
 
 <h3>Neural networks, from the math up — not from a wrapper down.</h3>
 
-<p><b>EveryO</b> is a neural computing framework whose autograd engine, layers, optimizers and training loop
-are written from scratch on NumPy — then accelerated with optional CUDA kernels and cross-checked against TensorFlow.<br>
+<p><b>EveryO</b> is a complete deep learning framework — autograd, layers, optimizers, the training
+loop, ONNX export, quantization, profiling and distributed training — written from scratch on NumPy,
+accelerated with optional CUDA kernels and cross-checked against TensorFlow.<br>
 Small enough to read in an afternoon. Correct enough to trust.</p>
 
+[![version](https://img.shields.io/github/v/tag/krishanth7/EveryO?label=version&color=2a78d6)](https://github.com/krishanth7/EveryO/releases)
 [![tests](https://github.com/krishanth7/EveryO/actions/workflows/tests.yml/badge.svg)](https://github.com/krishanth7/EveryO/actions/workflows/tests.yml)
 [![CUDA build](https://github.com/krishanth7/EveryO/actions/workflows/cuda-build.yml/badge.svg)](https://github.com/krishanth7/EveryO/actions/workflows/cuda-build.yml)
 [![Python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -16,7 +18,7 @@ Small enough to read in an afternoon. Correct enough to trust.</p>
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-eb6834)](CONTRIBUTING.md)
 [![Stars](https://img.shields.io/github/stars/krishanth7/EveryO?style=flat&color=eda100)](https://github.com/krishanth7/EveryO/stargazers)
 
-**[What is EveryO?](#what-is-everyo) · [Quick start](#-quick-start-60-seconds) · [What it does](#-what-it-actually-does) · [Results](#-results-from-a-real-run) · [Architecture](#-architecture) · [Roadmap](#-roadmap) · [Contribute](#-contributing) · [Governance](#-governance-and-project-policies)**
+**[What is EveryO?](#what-is-everyo) · [What you would use it for](#what-you-would-use-it-for) · [Quick start](#-quick-start-60-seconds) · [Capabilities](#-what-it-actually-does) · [Results](#-results-from-a-real-run) · [Correctness](#-correctness-is-the-feature) · [Architecture](#-architecture) · [Roadmap](#-roadmap--all-shipped) · [Contribute](#-contributing) · [Governance](#-governance-and-project-policies)**
 
 </div>
 
@@ -24,31 +26,85 @@ Small enough to read in an afternoon. Correct enough to trust.</p>
 
 ## What is EveryO?
 
-EveryO is a **neural network framework written from scratch in Python**. Tensors, reverse-mode
-automatic differentiation, layers, optimizers, the training loop, serialization — all of it is
-implemented here, on top of NumPy. It is not a wrapper around PyTorch, TensorFlow or JAX, and it
-does not call out to one at runtime.
+**EveryO is a complete deep learning framework that a person can actually read.**
 
-The point is legibility. The gradient engine is **261 lines**. The whole package is **~12,700 lines**
-across 70 focused modules. You can follow one number from `loss.backward()` through the graph walk,
-into a matrix multiply, and out to a hand-written CUDA kernel — reading real code the entire way.
+Tensors, reverse-mode automatic differentiation, layers, optimizers, the training loop,
+serialization, ONNX export, quantization, profiling and distributed training are all implemented
+in this repository, in Python on NumPy. Nothing here wraps PyTorch, TensorFlow or JAX, and nothing
+calls out to one at runtime.
+
+The whole package is **~12,800 lines across 70 focused modules**, and the gradient engine at the
+centre of it is **261 lines**. You can follow a single number from `loss.backward()`, through the
+graph walk, into a matrix multiply, and out to a hand-written CUDA kernel — reading real code the
+entire way.
+
+### At a glance
+
+| | |
+|---|---|
+| **What it is** | A from-scratch neural network framework — autograd, layers, optimizers, training loop, two ONNX exporters, int8 quantization, a profiler, and data-parallel training on one machine or several |
+| **What it is for** | Understanding how deep learning works, verifying a result against a readable reference, teaching, and small CPU-scale experiments |
+| **What it runs on** | Python 3.9–3.12 on Linux, macOS and Windows. NumPy is the only hard dependency |
+| **What is optional** | CUDA kernels, TensorFlow cross-checks, ONNX export, Plotly dashboards — each absent without breaking anything |
+| **What it never does** | No accounts, no API keys, no network calls, no telemetry. Loading a model cannot execute code |
+| **Maturity** | v0.2.0. Every roadmap item is shipped; see [what "implemented" means](#what-implemented-means-for-each-one) for what was verified and what was not |
+| **Licence** | MIT |
 
 Legibility is worthless without correctness, so every differentiable operation is checked against
 central finite differences, and the numerical results are checked against TensorFlow. Where the two
-disagree, the README says by how much.
+disagree, this README says by how much.
 
 ```
 BUILD  →  TRAIN  →  MEASURE  →  UNDERSTAND  →  ACCELERATE
 ```
 
-### Who it is for
+### What you would use it for
 
-- **People learning how deep learning actually works** — you can read the derivative of every
-  operation you use, not just call it.
-- **Engineers who need to verify a result** — a small, deterministic, dependency-light reference
-  you can step through in a debugger.
-- **Teachers and students** — no accounts, no API keys, no downloads, no network access. `pip install -e .`
-  and everything in this README runs.
+**1. Learning how a framework actually works.** Every derivative you use is code you can open.
+There is no compiled kernel hiding the interesting part, and no binding layer to stop at:
+
+| To understand | Read | Lines |
+|---|---|---:|
+| How gradients flow backwards | [`everyo/core/autograd.py`](everyo/core/autograd.py) | 261 |
+| What a tensor actually is | [`everyo/core/tensor.py`](everyo/core/tensor.py) | 554 |
+| How convolution is computed and differentiated | [`everyo/core/convolution.py`](everyo/core/convolution.py) | 390 |
+| How Adam updates a weight | [`everyo/optim/adam.py`](everyo/optim/adam.py) | 97 |
+
+**2. Checking a result you do not trust.** A small, deterministic, dependency-light implementation
+makes a good second opinion. Every gradient here is checked against central finite differences, and
+every forward pass against TensorFlow, so the reference has itself been referenced:
+
+```python
+import tensorflow as tf
+
+ours = eo.conv2d(eo.tensor(image), eo.tensor(kernel)).numpy()
+theirs = tf.nn.conv2d(image, kernel, strides=1, padding="VALID").numpy()
+
+abs(ours - theirs).max()  # 0.0 — this exact check runs in tests/test_conv.py
+```
+
+**3. Teaching and coursework.** No accounts, no API keys, no downloads, no network access.
+`pip install -e .` and every figure and number in this README reproduces on a laptop.
+
+**4. Small experiments where legibility beats throughput.** Transformers, CNNs and LSTMs all train
+here on CPU in seconds — fast enough to iterate on an idea, and readable enough to explain the
+result afterwards.
+
+**5. Getting a model out again.** Nothing here is a one-way door: `export_onnx` and
+`export_onnx_traced` cover the whole library between them, and both are verified by re-running the
+exported graph through ONNX Runtime rather than by trusting the schema checker.
+
+### When to use something else
+
+Being useful means being clear about where the boundary is:
+
+| Your situation | Use |
+|---|---|
+| Learning, teaching, verifying, or reading the implementation | **EveryO** |
+| Small models, CPU, where iteration speed and clarity matter more than throughput | **EveryO** |
+| Training a large model, or anything where wall-clock time is the constraint | **PyTorch or JAX** — EveryO is a readable reference, not a tuned runtime |
+| Production serving with hardware acceleration | Export from EveryO to **ONNX Runtime**, or use a production framework directly |
+| You need a mature ecosystem of pretrained weights and third-party layers | **PyTorch** |
 
 ### What it is not
 
@@ -56,7 +112,7 @@ EveryO is **not a production training runtime**. The roadmap is finished, but "i
 "battle-tested": it will not out-perform a tuned framework on a large model, its CUDA path needs a
 GPU that this project's CI does not have, and multi-node training has been exercised across
 processes rather than across machines. Those limits are stated where they apply rather than left
-for you to discover — the [Roadmap](#-roadmap) says exactly what was verified and how.
+for you to discover — the [Roadmap](#-roadmap--all-shipped) says exactly what was verified and how.
 
 ### How to trust it
 
@@ -221,7 +277,7 @@ LSTM  7.71e-06     ~560,000x larger
 > **Requires a GPU** — the CUDA paths (`eo.cuda.*`, including GPU-resident tensors) need the
 > native extension built against a real NVIDIA toolchain. Everything else on this page runs on CPU.
 > The kernels are checked against NumPy **on hardware that has a GPU**; that check skips in this
-> project's CI, which has none. See the [roadmap](#-roadmap) for exactly what is and is not verified.
+> project's CI, which has none. See the [roadmap](#-roadmap--all-shipped) for exactly what is and is not verified.
 >
 > **Still array-in, array-out** — `eo.cuda.add` and friends copy to the device and back on every call.
 > Use `eo.cuda.to_device` when you want a chain of operations to stay resident.
@@ -243,11 +299,12 @@ cross-entropy  vs TensorFlow ............. exact to 6 decimal places
 its GRADIENT   vs TensorFlow ............. 3.725e-09
 ```
 
-**709 tests** run in about 17 seconds on CPU. CUDA tests skip themselves without a GPU;
-TensorFlow tests skip themselves without TensorFlow. The core suite needs no network, no GPU, and no credentials.
+**791 tests** run in about 25 seconds on a laptop CPU. CUDA tests skip themselves without a GPU;
+TensorFlow tests skip themselves without TensorFlow; the ONNX tests skip without the optional `onnx`
+extra, leaving 712. The core suite needs no network, no GPU and no credentials.
 
 ```bash
-pytest                    # 709 passed, 8 skipped
+pytest                    # 791 passed, 9 skipped   (712 without the onnx extra)
 ./scripts/lint.sh         # ruff check + format check
 ```
 
