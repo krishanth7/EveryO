@@ -1,11 +1,58 @@
-## ❤️ Support EveryO
 
-EveryO is an open-source neural computing and deep-learning framework built to make AI development, experimentation, and research more accessible.
+# ============================================================
+# EveryO | Official Sponsorship Configuration
+# ============================================================
+#
+# Project:
+# EveryO - Open-Source Neural Computing & Deep Learning
+#
+# Repository:
+# https://github.com/krishanth7/EveryO
+#
+# Maintainer:
+# krishanth7
+#
+# PURPOSE
+# ------------------------------------------------------------
+# Support the ongoing research, engineering, and maintenance
+# of the EveryO open-source deep-learning framework.
+#
+# Sponsorship contributions help support:
+#
+# 1. Tensor computing and numerical operations
+# 2. Automatic differentiation and gradient computation
+# 3. Neural network architectures and optimization
+# 4. CPU and GPU performance improvements
+# 5. Computer vision and Transformer research
+# 6. Model training, inference, and interoperability
+# 7. Documentation, testing, and developer experience
+# 8. Open-source maintenance and community contributions
+#
+# ============================================================
+# OFFICIAL GITHUB SPONSORS
+# ============================================================
 
-Your sponsorship helps support ongoing framework development, automatic differentiation, neural-network architectures, performance optimization, documentation, testing, and community contributions.
+github:
+  - krishanth7
 
-By sponsoring EveryO, you help sustain independent open-source AI engineering and its long-term development.
-
-**[Become a GitHub Sponsor](https://github.com/sponsors/krishanth7)**
-
-Thank you for supporting EveryO and the open-source AI community.
+# ============================================================
+# ADDITIONAL FUNDING PLATFORMS
+# ============================================================
+#
+# Enable only when you have a real, active funding account.
+#
+# ko_fi: your-username
+# patreon: your-username
+# open_collective: your-project
+# liberapay: your-username
+# issuehunt: your-username
+# polar: your-username
+# buy_me_a_coffee: your-username
+# thanks_dev: your-username
+#
+# custom:
+#   - https://your-official-donation-page.example
+#
+# ============================================================
+# END OF CONFIGURATION
+# ============================================================
