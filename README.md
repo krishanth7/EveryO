@@ -622,6 +622,12 @@ No API keys. No accounts. No telemetry. No network calls from the core.
 Model loading is pickle-free by design — an `.evo` archive cannot execute code.
 Report vulnerabilities privately through **[SECURITY.md](SECURITY.md)**.
 
+---
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=krishanth7/dera&type=Date)](https://star-history.com/#krishanth7/EveryO&Date)
+
 ## 📄 License
 
 [MIT](LICENSE) — use it, fork it, teach with it, ship it.
