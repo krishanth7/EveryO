@@ -624,9 +624,6 @@ Report vulnerabilities privately through **[SECURITY.md](SECURITY.md)**.
 
 ---
 
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/chart?repos=krishanth/everyo&type=date&legend=top-left)](https://www.star-history.com/?repos=krishanth%2Feveryo&type=date&legend=top-left)
 ## 📄 License
 
 [MIT](LICENSE) — use it, fork it, teach with it, ship it.
