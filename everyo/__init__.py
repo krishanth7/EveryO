@@ -17,6 +17,17 @@ from __future__ import annotations
 
 from everyo import backends, cuda, datasets, distributed, profiler, quantization, visualization
 from everyo._logging import configure_logging, get_logger
+from everyo.advanced_training import (
+    MedianPruner,
+    ReduceOnPlateauScheduler,
+    TrainingAnomalyDetector,
+    WarmupCosineScheduler,
+    clip_gradients,
+    grid_search,
+    load_training_checkpoint,
+    random_search,
+    save_training_checkpoint,
+)
 from everyo.config import Config, DeviceConfig, ModelConfig, TrainingConfig, load_config
 from everyo.core.autograd import (
     detect_anomaly,
@@ -154,7 +165,7 @@ from everyo.nn import (
     padding_mask,
     scaled_dot_product_attention,
 )
-from everyo.optim import SGD, Adam, Optimizer
+from everyo.optim import SGD, Adam, AdamW, Optimizer, RMSprop
 from everyo.precision import (
     GradScaler,
     autocast,
@@ -355,8 +366,19 @@ __all__ = [
     "scaled_dot_product_attention",
     # optimizers
     "Adam",
+    "AdamW",
     "Optimizer",
+    "RMSprop",
     "SGD",
+    "WarmupCosineScheduler",
+    "ReduceOnPlateauScheduler",
+    "MedianPruner",
+    "TrainingAnomalyDetector",
+    "clip_gradients",
+    "grid_search",
+    "random_search",
+    "save_training_checkpoint",
+    "load_training_checkpoint",
     # data
     "ArrayDataset",
     "DataLoader",
