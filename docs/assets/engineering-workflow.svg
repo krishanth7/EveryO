@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="305" viewBox="0 0 1100 305" role="img" aria-labelledby="title description">
+  <title id="title">EveryO engineering workflow</title>
+  <desc id="description">Three stages: write readable Python, run model training and automatic differentiation locally, then examine numerical outputs, plots, and optional exports.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#101C32"/><stop offset="1" stop-color="#0C2941"/></linearGradient>
+  </defs>
+  <rect width="1100" height="305" rx="18" fill="url(#background)"/>
+  <text x="40" y="47" fill="#F8FAFC" font-family="Arial,sans-serif" font-size="24" font-weight="700">ONE WORKFLOW. INSPECTABLE AT EVERY STAGE.</text>
+  <text x="40" y="75" fill="#9FB6CC" font-family="Arial,sans-serif" font-size="14">A compact CPU-first path from source code to evidence.</text>
+  <g font-family="Arial,sans-serif">
+    <rect x="40" y="111" width="305" height="136" rx="14" fill="#172B47" stroke="#3C658A"/>
+    <rect x="397" y="111" width="305" height="136" rx="14" fill="#172B47" stroke="#3C658A"/>
+    <rect x="754" y="111" width="305" height="136" rx="14" fill="#172B47" stroke="#3C658A"/>
+    <text x="62" y="142" fill="#7DD3FC" font-size="13" font-weight="700">01 · DEFINE</text>
+    <text x="62" y="176" fill="#FFFFFF" font-size="22" font-weight="700">Python + NumPy</text>
+    <text x="62" y="204" fill="#AFC2D6" font-size="15">Tensors · Models · Data</text>
+    <text x="419" y="142" fill="#7DD3FC" font-size="13" font-weight="700">02 · COMPUTE</text>
+    <text x="419" y="176" fill="#FFFFFF" font-size="22" font-weight="700">CPU training loop</text>
+    <text x="419" y="204" fill="#AFC2D6" font-size="15">Forward · Backward · Update</text>
+    <text x="776" y="142" fill="#7DD3FC" font-size="13" font-weight="700">03 · VERIFY</text>
+    <text x="776" y="176" fill="#FFFFFF" font-size="22" font-weight="700">Outputs + evidence</text>
+    <text x="776" y="204" fill="#AFC2D6" font-size="15">Predictions · Gradients · Plots</text>
+    <path d="M350 179 H389 M378 170 L389 179 L378 188 M707 179 H746 M735 170 L746 179 L735 188" stroke="#38BDF8" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="40" y="278" fill="#9FB6CC" font-size="13">Optional integrations: CUDA acceleration · TensorFlow comparisons · ONNX export (each requires separate validation)</text>
+  </g>
+</svg>
