@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="410" viewBox="0 0 1080 410" role="img" aria-labelledby="title desc">
+  <title id="title">EveryO architecture overview</title>
+  <desc id="desc">The CPU-first workflow flows from data and tensors through neural network layers, automatic differentiation and optimization, then evaluation and optional export.</desc>
+  <rect width="1080" height="410" rx="24" fill="#0B1220"/>
+  <text x="44" y="53" fill="#F8FAFC" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700">EVERYO / CPU-FIRST LEARNING LOOP</text>
+  <text x="44" y="80" fill="#94A3B8" font-family="Arial,Helvetica,sans-serif" font-size="15">Transparent components · Inspectable gradients · Reproducible experiments</text>
+  <g font-family="Arial,Helvetica,sans-serif" text-anchor="middle">
+    <rect x="45" y="125" width="185" height="135" rx="15" fill="#18263D" stroke="#375A80" stroke-width="2"/>
+    <text x="137" y="171" fill="#7DD3FC" font-size="18" font-weight="700">01 / DATA</text>
+    <text x="137" y="200" fill="#F1F5F9" font-size="17">NumPy tensors</text>
+    <text x="137" y="225" fill="#94A3B8" font-size="14">Inputs and labels</text>
+
+    <rect x="270" y="125" width="185" height="135" rx="15" fill="#18263D" stroke="#375A80" stroke-width="2"/>
+    <text x="362" y="171" fill="#7DD3FC" font-size="18" font-weight="700">02 / MODEL</text>
+    <text x="362" y="200" fill="#F1F5F9" font-size="17">Neural layers</text>
+    <text x="362" y="225" fill="#94A3B8" font-size="14">Forward and loss</text>
+
+    <rect x="495" y="125" width="185" height="135" rx="15" fill="#163E57" stroke="#38BDF8" stroke-width="2"/>
+    <text x="587" y="171" fill="#BAE6FD" font-size="18" font-weight="700">03 / GRADIENT</text>
+    <text x="587" y="200" fill="#F1F5F9" font-size="17">Autograd</text>
+    <text x="587" y="225" fill="#B6D7E7" font-size="14">Chain rule · backward()</text>
+
+    <rect x="720" y="125" width="185" height="135" rx="15" fill="#18263D" stroke="#375A80" stroke-width="2"/>
+    <text x="812" y="171" fill="#7DD3FC" font-size="18" font-weight="700">04 / UPDATE</text>
+    <text x="812" y="200" fill="#F1F5F9" font-size="17">Optimizers</text>
+    <text x="812" y="225" fill="#94A3B8" font-size="14">Parameter step</text>
+
+    <rect x="945" y="125" width="90" height="135" rx="15" fill="#18352F" stroke="#34D399" stroke-width="2"/>
+    <text x="990" y="171" fill="#A7F3D0" font-size="15" font-weight="700">05</text>
+    <text x="990" y="198" fill="#F1F5F9" font-size="14">Evaluate</text>
+    <text x="990" y="219" fill="#94A3B8" font-size="12">Export*</text>
+  </g>
+  <g stroke="#38BDF8" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M232 193 H265"/><path d="m257 185 8 8-8 8"/>
+    <path d="M457 193 H490"/><path d="m482 185 8 8-8 8"/>
+    <path d="M682 193 H715"/><path d="m707 185 8 8-8 8"/>
+    <path d="M907 193 H940"/><path d="m932 185 8 8-8 8"/>
+    <path d="M812 275 V310 H362 V275" stroke="#34D399" stroke-dasharray="7 7"/>
+    <path d="m355 283 7-8 7 8" stroke="#34D399"/>
+  </g>
+  <text x="587" y="302" fill="#A7F3D0" font-family="Arial,Helvetica,sans-serif" font-size="14" text-anchor="middle">Repeat across training batches</text>
+  <text x="44" y="366" fill="#CBD5E1" font-family="Arial,Helvetica,sans-serif" font-size="15">CORE: runs on CPU · No external AI API or account required</text>
+  <text x="44" y="389" fill="#94A3B8" font-family="Arial,Helvetica,sans-serif" font-size="13">* Optional ONNX and accelerator integrations require extra dependencies and separate validation.</text>
+</svg>
