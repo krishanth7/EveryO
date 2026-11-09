@@ -6,6 +6,31 @@ All notable changes to EveryO are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-09
+
+### Changed
+
+- Version the cumulative CPU service, robustness, artifact integrity and
+  operational qualification snapshot as `0.5.0`.
+- Add [v0.5.0 release notes](docs/releases/v0.5.0.md) with explicit limits.
+- No new framework APIs are asserted relative to v0.4.0.
+
+## [0.4.0] - 2026-11-09
+
+### Changed
+
+- Version the cumulative research-model and interoperability snapshot as
+  `0.4.0`.
+- Add [v0.4.0 release notes](docs/releases/v0.4.0.md).
+- No new framework APIs are asserted relative to v0.3.0.
+
+## [0.3.0] - 2026-11-09
+
+### Changed
+
+- Version the accumulated CPU numerical and research-tooling changes on main
+  as `0.3.0`. See [v0.3.0 release notes](docs/releases/v0.3.0.md).
+
 ### Phase 3 — optional high-performance CPU execution
 
 - Add bounded scratch-buffer reuse, validated zero-copy views, parallel chunk
@@ -353,7 +378,10 @@ The first release: a working foundation rather than a complete framework.
 - The copyright line in `LICENSE` reads "EveryO contributors". A repository
   owner who wants their own name or organisation there should edit that line.
 
-[Unreleased]: https://github.com/krishanth7/EveryO/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/krishanth7/EveryO/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/krishanth7/EveryO/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/krishanth7/EveryO/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/krishanth7/EveryO/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/krishanth7/EveryO/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/krishanth7/EveryO/releases/tag/v0.1.0
 
