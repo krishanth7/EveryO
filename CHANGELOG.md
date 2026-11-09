@@ -6,6 +6,15 @@ All notable changes to EveryO are recorded here. The format follows
 
 ## [Unreleased]
 
+### Phase 3 — optional high-performance CPU execution
+
+- Add bounded scratch-buffer reuse, validated zero-copy views, parallel chunk
+  mapping, vectorized AXPY and fused affine/ReLU inference kernels.
+- Add optional separately compiled C++ AXPY backend, CPU profiling, benchmark
+  regression checks, tests and a reproducible microbenchmark. CPU speedups
+  are workload-specific and are **not** assumed; the standard autograd path is
+  unchanged.
+
 ### Added
 
 - Phase 2 CPU derivative inspection: numerical Jacobian, Hessian, JVP and HVP;
