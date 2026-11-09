@@ -58,6 +58,8 @@ class Trainer:
         metrics: Sequence[str | Callable[[Any, Any], float]] = (),
         device: DeviceLike = "cpu",
         gradient_clip: float | None = None,
+        accumulation_steps: int = 1,
+        detect_anomalies: bool = False,
     ) -> None:
         if not isinstance(model, Module):
             raise TypeError(f"model must be an everyo Module, got {type(model).__name__}.")
@@ -69,12 +71,16 @@ class Trainer:
             raise TypeError("loss_fn must be callable, e.g. eo.CrossEntropyLoss().")
         if gradient_clip is not None and float(gradient_clip) <= 0:
             raise ValueError(f"gradient_clip must be positive, got {gradient_clip}.")
+        if not isinstance(accumulation_steps, int) or accumulation_steps < 1:
+            raise ValueError("accumulation_steps must be a positive integer")
 
         self.model = model
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.device = resolve_device(device)
         self.gradient_clip = None if gradient_clip is None else float(gradient_clip)
+        self.accumulation_steps = accumulation_steps
+        self.detect_anomalies = bool(detect_anomalies)
         self.metrics = self._resolve_metrics(metrics)
         self.history = History()
         self.stop_training = False
@@ -241,26 +247,37 @@ class Trainer:
         predictions: list[np.ndarray] = []
         targets: list[np.ndarray] = []
 
+        self.optimizer.zero_grad()
+        pending_batches = 0
+        pending_samples = 0
         for index, batch in enumerate(loader):
             handler.on_batch_begin(self, index)
             features, target = self._split_batch(batch)
 
-            self.optimizer.zero_grad()
             output = self.model(features)
             loss = self.loss_fn(output, target)
-            loss.backward()
-            if self.gradient_clip is not None:
-                self._clip_gradients()
-            self.optimizer.step()
-
             count = int(features.shape[0]) if features.ndim else 1
             batch_loss = float(loss.item())
+            if self.detect_anomalies and not np.isfinite(batch_loss):
+                raise FloatingPointError("non-finite training loss")
+            # For mean reduction, weight each microbatch by its sample count;
+            # normalize by the full accumulation window before stepping.
+            scaled_loss = loss if self._loss_is_summed() else loss * count
+            scaled_loss.backward()
+            pending_batches += 1
+            pending_samples += count
+            if pending_batches == self.accumulation_steps:
+                self._apply_accumulated_step(pending_samples)
+                pending_batches, pending_samples = 0, 0
             total_loss += self._accumulate(batch_loss, count)
             total_samples += count
             if self.metrics:
                 predictions.append(output.numpy())
                 targets.append(np.asarray(target.data if isinstance(target, Tensor) else target))
             handler.on_batch_end(self, index, {"loss": batch_loss})
+
+        if pending_batches:
+            self._apply_accumulated_step(pending_samples)
 
         if total_samples == 0:
             raise EveryOError(
@@ -276,6 +293,20 @@ class Trainer:
             for name, metric in self.metrics.items():
                 logs[name] = float(metric(all_predictions, all_targets))
         return logs
+
+    def _apply_accumulated_step(self, sample_count: int) -> None:
+        if not self._loss_is_summed():
+            for parameter in self.optimizer.parameters:
+                if parameter.grad is not None:
+                    parameter.grad = parameter.grad / sample_count
+        if self.detect_anomalies:
+            from everyo.advanced_training import TrainingAnomalyDetector
+
+            TrainingAnomalyDetector().check(self.optimizer)
+        if self.gradient_clip is not None:
+            self._clip_gradients()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
 
     def _clip_gradients(self) -> None:
         """Scale gradients down so their global L2 norm is at most the clip value."""
