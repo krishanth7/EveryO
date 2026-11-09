@@ -42,12 +42,13 @@ dependencies = [
 tensorflow = ["tensorflow>=2.12"]
 yaml = ["PyYAML>=6.0"]
 onnx = ["onnx>=1.15", "onnxruntime>=1.17"]
+signing = ["cryptography>=42"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     # Pinned exactly: formatter output changes between ruff releases, so an
     # unpinned range makes `ruff format --check` pass locally and fail in CI.
-    "ruff==0.17.4",
+    "ruff==0.17.3",
     "PyYAML>=6.0",
 ]
 cuda = ["pybind11>=2.11"]
