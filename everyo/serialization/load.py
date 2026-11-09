@@ -19,6 +19,45 @@ __all__ = ["load", "load_manifest", "inspect_archive"]
 
 _LOGGER = get_logger(__name__)
 
+# Limits apply to decompressed bytes, not the easily forged compressed size.
+# Large deployments may raise these constants deliberately after review.
+MAX_MANIFEST_BYTES = 2 * 1024 * 1024
+MAX_PARAMETERS_BYTES = 512 * 1024 * 1024
+MAX_PARAMETER_ARRAYS = 10_000
+
+
+def _bounded_member(archive: zipfile.ZipFile, name: str, limit: int) -> bytes:
+    members = [entry for entry in archive.infolist() if entry.filename == name]
+    if len(members) != 1:
+        raise EveryOSerializationError(f"Expected exactly one {name} archive entry.")
+    if members[0].file_size > limit:
+        raise EveryOSerializationError(f"{name} exceeds the decompressed size limit.")
+    try:
+        with archive.open(members[0]) as source:
+            payload = source.read(limit + 1)
+    except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
+        raise EveryOSerializationError(f"Could not read {name} archive entry.") from exc
+    if len(payload) > limit:
+        raise EveryOSerializationError(f"{name} exceeds the decompressed size limit.")
+    return payload
+
+
+def _validate_npz(payload: bytes) -> None:
+    """Reject nested archive bombs before NumPy expands any arrays."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            entries = archive.infolist()
+            if len(entries) > MAX_PARAMETER_ARRAYS or len({e.filename for e in entries}) != len(
+                entries
+            ):
+                raise EveryOSerializationError("Invalid or duplicate parameter array entries.")
+            if any(not e.filename.endswith(".npy") for e in entries):
+                raise EveryOSerializationError("Parameter archive contains unexpected entries.")
+            if sum(e.file_size for e in entries) > MAX_PARAMETERS_BYTES:
+                raise EveryOSerializationError("Expanded parameter arrays exceed the size limit.")
+    except zipfile.BadZipFile as exc:
+        raise EveryOSerializationError("Parameters are not a valid NumPy archive.") from exc
+
 
 def _open_archive(path: Path) -> zipfile.ZipFile:
     if not path.is_file():
@@ -41,7 +80,9 @@ def load_manifest(path: str | Path) -> dict[str, Any]:
                 "written by everyo.save()."
             )
         try:
-            manifest = json.loads(archive.read(MANIFEST_NAME).decode("utf-8"))
+            manifest = json.loads(
+                _bounded_member(archive, MANIFEST_NAME, MAX_MANIFEST_BYTES).decode("utf-8")
+            )
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise EveryOSerializationError(
                 f"The manifest in {archive_path} is corrupt ({exc})."
@@ -107,7 +148,9 @@ def load(path: str | Path, *, model: Module | None = None, strict: bool = True) 
     with _open_archive(archive_path) as archive:
         if PARAMETERS_NAME not in archive.namelist():
             raise EveryOSerializationError(f"{archive_path} does not contain {PARAMETERS_NAME}.")
-        payload = archive.read(PARAMETERS_NAME)
+        payload = _bounded_member(archive, PARAMETERS_NAME, MAX_PARAMETERS_BYTES)
+
+    _validate_npz(payload)
 
     try:
         # allow_pickle=False is the guarantee that loading cannot execute code.
