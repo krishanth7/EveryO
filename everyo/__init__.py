@@ -166,6 +166,7 @@ from everyo.training import (
     accuracy,
     confusion_matrix,
 )
+from everyo.verification import GradcheckResult, gradcheck
 from everyo.version import VERSION_INFO, __version__
 from everyo.visualization import (
     plot_accuracy,
@@ -177,6 +178,8 @@ from everyo.visualization import (
 )
 
 __all__ = [
+    "GradcheckResult",
+    "gradcheck",
     # metadata
     "VERSION_INFO",
     "__version__",
