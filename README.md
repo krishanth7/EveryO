@@ -2,11 +2,10 @@
 
 <img src="docs/assets/banner.png" alt="EveryO — open-source neural computing framework" width="100%">
 
-<h3>Neural computing for learning, experimentation, and numerical analysis.</h3>
+<h3>Open neural computing. Reproducible engineering. Transparent results.</h3>
 
-<p><b>EveryO</b> is a neural computing framework whose autograd engine, layers, optimizers and training loop
-are written from scratch on NumPy — then accelerated with optional CUDA kernels and cross-checked against TensorFlow.<br>
-Designed for readable implementations, reproducible experiments, and explicit validation.</p>
+<p><b>EveryO</b> is an open-source Python framework for neural-network research, education, and CPU-first experimentation.<br>
+Its transparent NumPy implementation covers automatic differentiation, model construction, optimization, training, and evaluation; optional CUDA, TensorFlow, and ONNX integrations extend the workflow.</p>
 
 [![version](https://img.shields.io/github/v/tag/krishanth7/EveryO?label=version&color=2a78d6)](https://github.com/krishanth7/EveryO/releases)
 [![tests](https://github.com/krishanth7/EveryO/actions/workflows/tests.yml/badge.svg)](https://github.com/krishanth7/EveryO/actions/workflows/tests.yml)
@@ -22,6 +21,54 @@ Designed for readable implementations, reproducible experiments, and explicit va
 **[What is EveryO?](#what-is-everyo) · [What you would use it for](#what-you-would-use-it-for) · [Quick start](#-quick-start-60-seconds) · [Capabilities](#-what-it-actually-does) · [Results](#-results-from-a-real-run) · [Correctness](#-correctness-is-the-feature) · [Architecture](#-architecture) · [Roadmap](#-roadmap--all-shipped) · [Contribute](#-contributing) · [Governance](#-governance-and-project-policies)**
 
 </div>
+
+---
+
+## Documentation in 10 languages
+
+English is the canonical technical reference. The nine localized introductions
+cover installation, a working example, expected output, capabilities, and
+engineering limitations. Contributions to improve translations are welcome.
+
+| Language | Documentation | Language | Documentation |
+| --- | --- | --- | --- |
+| English | [English — main README](README.md) | Nederlands | [Dutch](docs/i18n/README.nl.md) |
+| Français | [French](docs/i18n/README.fr.md) | Español | [Spanish](docs/i18n/README.es.md) |
+| 简体中文 | [Simplified Chinese](docs/i18n/README.zh-CN.md) | Deutsch | [German](docs/i18n/README.de.md) |
+| Português | [Portuguese](docs/i18n/README.pt.md) | 日本語 | [Japanese](docs/i18n/README.ja.md) |
+| 한국어 | [Korean](docs/i18n/README.ko.md) | हिन्दी | [Hindi](docs/i18n/README.hi.md) |
+
+## Executive overview
+
+| Dimension | Engineering position |
+| --- | --- |
+| Mission | Make neural-computing fundamentals inspectable, testable, and reproducible. |
+| Primary use | Research prototypes, numerical experiments, teaching, and framework development. |
+| Core architecture | NumPy tensors, reverse-mode autograd, neural-network modules, optimizers, and training utilities. |
+| Supported workflow | CPU first; optional CUDA acceleration, TensorFlow cross-checks, and ONNX interoperability. |
+| Assurance | Automated tests, finite-difference validation, documented benchmarks, and fail-closed release-evidence helpers. |
+| Production status | **Not independently production-certified.** See the [qualification report](docs/production-qualification-2026-11-09.md). |
+
+### Minimal verified example
+
+```python
+import everyo as eo
+
+x = eo.tensor([2.0], requires_grad=True)
+y = x * x
+y.backward()
+print(x.grad)
+```
+
+Expected output:
+
+```text
+[4.]
+```
+
+This demonstrates the derivative of \(x^2\) at \(x=2\). For a full training
+workflow, see [Quick start](#-quick-start-60-seconds),
+[getting started](docs/getting-started.md), and the [CPU examples](examples/).
 
 ---
 
