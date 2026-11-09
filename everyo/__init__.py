@@ -72,6 +72,17 @@ from everyo.core.operations import (
     zeros_like,
 )
 from everyo.core.tensor import Tensor, as_tensor, is_tensor, tensor
+from everyo.cpu_engine import (
+    ArrayPool,
+    CpuProfile,
+    OptionalCppAxpy,
+    check_cpu_regression,
+    fused_affine_relu,
+    parallel_map_chunks,
+    profile_cpu,
+    vectorized_axpy,
+    zero_copy_view,
+)
 from everyo.data import (
     ArrayDataset,
     DataLoader,
@@ -204,6 +215,15 @@ from everyo.visualization import (
 )
 
 __all__ = [
+    "ArrayPool",
+    "CpuProfile",
+    "OptionalCppAxpy",
+    "check_cpu_regression",
+    "fused_affine_relu",
+    "parallel_map_chunks",
+    "profile_cpu",
+    "vectorized_axpy",
+    "zero_copy_view",
     "BenchmarkResult",
     "TensorDiagnostic",
     "assert_tensor_valid",
