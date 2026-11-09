@@ -1,4 +1,4 @@
-# EveryO — CPU production qualification evidence
+# EveryO — CPU production qualification evidence (2026-11-09)
 
 **Decision: FAIL / NOT CERTIFIED for unrestricted production deployment.**
 The CPU engineering baseline passes local regression checks. That does not
@@ -48,6 +48,17 @@ required item is backed by independent evidence.
   arrays before materializing them with NumPy.
 - `tests/test_production_archive_security.py`: exercise malicious archive
   cases and validate normal save/load API compatibility.
+- `everyo/serving.py`: set a configurable bounded socket read deadline
+  (`request_timeout_seconds`, default 5 seconds) and return HTTP 408 for
+  incomplete request bodies that exceed it.
+- `tests/test_production_operational_gates.py`: check concurrent CPU requests
+  recover after an idle request timeout, reject held-out content leakage,
+  detect artifact modification, and reject incomplete release evidence.
+
+These additional tests improve local assurance. A 20-request concurrency
+regression and tiny example do not replace sustained production load tests,
+an independent security assessor, representative evaluation data, or externally
+issued, verifiable release signatures. Those gates remain **FAIL / MISSING**.
 
 ## Remaining go-live blockers
 
