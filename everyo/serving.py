@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -56,16 +57,18 @@ class CPUModelServer(ThreadingHTTPServer):
         api_token: str | None = None,
         max_body_bytes: int = 1_000_000,
         max_concurrent: int = 4,
+        request_timeout_seconds: float = 5.0,
     ) -> None:
         if not isinstance(runtime, CPUInferenceRuntime):
             raise TypeError("runtime must be a CPUInferenceRuntime")
         if host not in {"127.0.0.1", "::1", "localhost"} and not api_token:
             raise ValueError("non-loopback serving requires an API token")
-        if max_body_bytes <= 0 or max_concurrent <= 0:
+        if max_body_bytes <= 0 or max_concurrent <= 0 or not 0 < request_timeout_seconds <= 300:
             raise ValueError("resource limits must be positive")
         self.runtime = runtime
         self.api_token = api_token
         self.max_body_bytes = max_body_bytes
+        self.request_timeout_seconds = request_timeout_seconds
         self.slots = threading.BoundedSemaphore(max_concurrent)
         self.metrics = ServiceMetrics()
         super().__init__((host, port), _handler_factory())
@@ -79,6 +82,10 @@ class CPUModelServer(ThreadingHTTPServer):
 def _handler_factory() -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         server: CPUModelServer
+
+        def setup(self) -> None:
+            super().setup()
+            self.connection.settimeout(self.server.request_timeout_seconds)
 
         def log_message(self, format: str, *args: Any) -> None:
             # Never log request paths, auth tokens or raw model inputs.
@@ -144,6 +151,8 @@ def _handler_factory() -> type[BaseHTTPRequestHandler]:
                 scores = self.server.runtime.predict_batched(np.asarray(payload["inputs"]))
                 self._reply(200, {"outputs": scores.tolist(), "count": len(scores)})
                 return True
+            except (socket.timeout, TimeoutError):
+                self._reply(408, {"error": "request_timeout"})
             except (ValueError, TypeError, UnicodeDecodeError, OverflowError):
                 self._reply(400, {"error": "invalid_input"})
             except Exception:
