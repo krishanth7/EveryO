@@ -1,4 +1,4 @@
-# EveryO — CPU production qualification evidence (2026-11-09)
+# EveryO — CPU production qualification evidence
 
 **Decision: FAIL / NOT CERTIFIED for unrestricted production deployment.**
 The CPU engineering baseline passes local regression checks. That does not
