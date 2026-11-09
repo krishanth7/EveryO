@@ -162,6 +162,17 @@ from everyo.language_model import (
     next_token_loss,
     sample_next_token,
 )
+from everyo.multimodal import (
+    MultimodalBatch,
+    TinyMultimodalNet,
+    audio_frame_features,
+    contrastive_alignment_loss,
+    evaluate_multimodal,
+    image_patch_features,
+    multimodal_loss,
+    prepare_multimodal_batch,
+    text_hash_features,
+)
 from everyo.nn import (
     GRU,
     LSTM,
@@ -259,6 +270,15 @@ from everyo.visualization import (
 )
 
 __all__ = [
+    "MultimodalBatch",
+    "TinyMultimodalNet",
+    "audio_frame_features",
+    "contrastive_alignment_loss",
+    "evaluate_multimodal",
+    "image_patch_features",
+    "multimodal_loss",
+    "prepare_multimodal_batch",
+    "text_hash_features",
     "FineTuneReport",
     "InstructionBatch",
     "LoRALinear",
