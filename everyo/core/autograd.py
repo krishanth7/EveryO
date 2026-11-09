@@ -29,6 +29,8 @@ __all__ = [
     "no_grad",
     "enable_grad",
     "set_grad_enabled",
+    "mutation_guard",
+    "detect_anomaly",
     "unbroadcast",
     "topological_order",
 ]
@@ -41,6 +43,49 @@ class _GradState(threading.local):
 
 
 _STATE = _GradState()
+
+
+class _MutationState(threading.local):
+    enabled: bool = False
+
+
+_MUTATION_STATE = _MutationState()
+
+
+class _AnomalyState(threading.local):
+    enabled: bool = False
+
+
+_ANOMALY_STATE = _AnomalyState()
+
+
+class detect_anomaly:
+    """Raise on non-finite reverse-mode gradients (thread-local, opt-in)."""
+
+    def __enter__(self) -> detect_anomaly:
+        self._previous = _ANOMALY_STATE.enabled
+        _ANOMALY_STATE.enabled = True
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        _ANOMALY_STATE.enabled = self._previous
+
+
+class mutation_guard:
+    """Detect NumPy-side input mutation between forward and backward.
+
+    Wrap the *forward* pass in this context. Graph nodes retain snapshots of
+    their inputs, so mutations are detected even if backward occurs later.
+    This is a diagnostic mode: snapshot memory/time overhead is O(input size).
+    """
+
+    def __enter__(self) -> mutation_guard:
+        self._previous = _MUTATION_STATE.enabled
+        _MUTATION_STATE.enabled = True
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        _MUTATION_STATE.enabled = self._previous
 
 
 def is_grad_enabled() -> bool:
@@ -115,7 +160,7 @@ class Node:
             no arguments beyond their tensors.
     """
 
-    __slots__ = ("operation", "parents", "backward_fn", "attributes")
+    __slots__ = ("operation", "parents", "backward_fn", "attributes", "_input_snapshots")
 
     def __init__(
         self,
@@ -128,6 +173,22 @@ class Node:
         self.parents = tuple(parents)
         self.backward_fn = backward_fn
         self.attributes: dict[str, Any] = dict(attributes) if attributes else {}
+        self._input_snapshots = (
+            tuple(parent.data.copy() for parent in parents) if _MUTATION_STATE.enabled else None
+        )
+
+    def verify_inputs_unchanged(self) -> None:
+        """Reject silent changes to saved inputs in mutation diagnostic mode."""
+        if self._input_snapshots is None:
+            return
+        for index, (parent, saved) in enumerate(zip(self.parents, self._input_snapshots)):
+            if parent.data.shape != saved.shape or not np.array_equal(
+                parent.data, saved, equal_nan=True
+            ):
+                raise EveryOGradientError(
+                    f"Input {index} to '{self.operation}' changed after forward; "
+                    "recompute the graph instead of mutating saved tensor storage."
+                )
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"Node(operation={self.operation!r}, parents={len(self.parents)})"
@@ -228,9 +289,18 @@ def backward(root: Tensor, gradient: np.ndarray | None = None) -> None:
                 f"the tensor has shape {root.shape}; they must match."
             )
 
+    order = topological_order(root)
+    # Validate the complete guarded graph before writing any gradient buffers.
+    for candidate in order:
+        if candidate.grad_node is not None:
+            candidate.grad_node.verify_inputs_unchanged()
+
+    if _ANOMALY_STATE.enabled and not np.all(np.isfinite(seed)):
+        raise EveryOGradientError("Non-finite seed gradient in backward()")
+
     gradients: dict[int, np.ndarray] = {id(root): seed}
 
-    for node in topological_order(root):
+    for node in order:
         incoming = gradients.get(id(node))
         if incoming is None:
             continue
@@ -250,6 +320,11 @@ def backward(root: Tensor, gradient: np.ndarray | None = None) -> None:
             if parent_grad is None or not parent.requires_grad:
                 continue
             parent_grad = np.asarray(parent_grad)
+            if _ANOMALY_STATE.enabled and not np.all(np.isfinite(parent_grad)):
+                raise EveryOGradientError(
+                    f"Non-finite gradient from '{node.grad_node.operation}' "
+                    f"into input tensor with shape {parent.shape}"
+                )
             existing = gradients.get(id(parent))
             gradients[id(parent)] = parent_grad if existing is None else existing + parent_grad
 
