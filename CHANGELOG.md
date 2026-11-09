@@ -6,6 +6,12 @@ All notable changes to EveryO are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Public, CPU-only `gradcheck` utility with immutable numerical error reports,
+  input validation and regression tests.
+- Numerical verification guide covering finite-difference limitations.
+
 ### Fixed
 
 - Keep benchmark stdout valid JSON when `--json` and `--output` are combined;
@@ -329,3 +335,4 @@ The first release: a working foundation rather than a complete framework.
 [Unreleased]: https://github.com/krishanth7/EveryO/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/krishanth7/EveryO/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/krishanth7/EveryO/releases/tag/v0.1.0
+
