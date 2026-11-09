@@ -142,6 +142,17 @@ from everyo.exceptions import (
     EveryOSerializationError,
     EveryOShapeError,
 )
+from everyo.finetuning import (
+    FineTuneReport,
+    InstructionBatch,
+    LoRALinear,
+    LoRATinyDecoderLM,
+    evaluate_instructions,
+    fine_tune_instructions,
+    gradient_checkpoint,
+    masked_next_token_loss,
+    prepare_instruction_batch,
+)
 from everyo.language_model import (
     ByteBPETokenizer,
     CharTokenizer,
@@ -248,6 +259,15 @@ from everyo.visualization import (
 )
 
 __all__ = [
+    "FineTuneReport",
+    "InstructionBatch",
+    "LoRALinear",
+    "LoRATinyDecoderLM",
+    "evaluate_instructions",
+    "fine_tune_instructions",
+    "gradient_checkpoint",
+    "masked_next_token_loss",
+    "prepare_instruction_batch",
     "ByteBPETokenizer",
     "CharTokenizer",
     "DecoderBlock",
