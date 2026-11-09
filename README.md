@@ -2,10 +2,10 @@
 
 <img src="docs/assets/banner.png" alt="EveryO — open-source neural computing framework" width="100%">
 
-<h3>Open neural computing. Reproducible engineering. Transparent results.</h3>
+<h3>Neural computing, engineered for clarity.</h3>
 
-<p><b>EveryO</b> is an open-source Python framework for neural-network research, education, and CPU-first experimentation.<br>
-Its transparent NumPy implementation covers automatic differentiation, model construction, optimization, training, and evaluation; optional CUDA, TensorFlow, and ONNX integrations extend the workflow.</p>
+<p><b>EveryO</b> is an open-source, CPU-first Python framework for understanding, implementing, and evaluating neural networks.<br>
+Explore tensors, automatic differentiation, model layers, optimization, and reproducible experiments in readable NumPy-based code.</p>
 
 [![version](https://img.shields.io/github/v/tag/krishanth7/EveryO?label=version&color=2a78d6)](https://github.com/krishanth7/EveryO/releases)
 [![tests](https://github.com/krishanth7/EveryO/actions/workflows/tests.yml/badge.svg)](https://github.com/krishanth7/EveryO/actions/workflows/tests.yml)
@@ -18,7 +18,7 @@ Its transparent NumPy implementation covers automatic differentiation, model con
 [![GitGem](https://gitgem.org/api/badge/github/krishanth7/EveryO.svg)](https://gitgem.org/github/krishanth7/EveryO)
 [![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/krishanth7/badge.svg)](https://hub.xerj.org/contributors/krishanth7)
 
-**[What is EveryO?](#what-is-everyo) · [What you would use it for](#what-you-would-use-it-for) · [Quick start](#-quick-start-60-seconds) · [Capabilities](#-what-it-actually-does) · [Results](#-results-from-a-real-run) · [Correctness](#-correctness-is-the-feature) · [Architecture](#-architecture) · [Roadmap](#-roadmap--all-shipped) · [Contribute](#-contributing) · [Governance](#-governance-and-project-policies)**
+**[Overview](#executive-overview) · [Getting started](#quick-start) · [Examples and outputs](#examples-and-outputs) · [Capabilities](#capabilities) · [Validation](#engineering-validation) · [Architecture](#architecture) · [Documentation](#documentation) · [Contributing](#contributing)**
 
 </div>
 
@@ -54,6 +54,10 @@ optional and require separate hardware validation.
 | Supported workflow | CPU first; optional CUDA acceleration, TensorFlow cross-checks, and ONNX interoperability. |
 | Assurance | Automated tests, finite-difference validation, documented benchmarks, and fail-closed release-evidence helpers. |
 | Production status | **Not independently production-certified.** See the [qualification report](docs/production-qualification-2026-11-09.md). |
+
+<div align="center">
+<img src="docs/assets/engineering-workflow.svg" alt="EveryO at a glance: start with Python and NumPy, run a CPU neural-network workflow, and inspect predictions, gradients, or model exports" width="100%">
+</div>
 
 ### How the framework fits together
 
@@ -100,7 +104,7 @@ Expected output:
 ```
 
 This demonstrates the derivative of \(x^2\) at \(x=2\). For a full training
-workflow, see [Quick start](#-quick-start-60-seconds),
+workflow, see [Quick start](#quick-start),
 [getting started](docs/getting-started.md), and the [CPU examples](examples/).
 
 <details>
@@ -176,19 +180,20 @@ traversal and individual gradient implementations directly in the source.
 
 ### What it is not
 
-EveryO is **not a production training runtime**. The roadmap is finished, but "implemented" is not
-"battle-tested": it will not out-perform a tuned framework on a large model, its CUDA path needs a
-GPU that this project's CI does not have, and multi-node training has been exercised across
-processes rather than across machines. Those limits are stated where they apply rather than left
-for you to discover — the [Roadmap](#-roadmap--all-shipped) says exactly what was verified and how.
+EveryO is **not independently certified as a production training runtime**. Feature availability
+does not imply large-scale performance or operational qualification: its CUDA path needs GPU
+hardware not present in the standard CI matrix, and multi-node training has been exercised across
+processes on one host rather than physically separate machines. See
+[Engineering validation](#engineering-validation) and the
+[production qualification report](docs/production-qualification-2026-11-09.md) for the evidence boundary.
 
 ### How to trust it
 
 | Question | Where it is answered |
 |---|---|
-| Are the gradients right? | [Correctness is the feature](#-correctness-is-the-feature) — finite differences and TensorFlow, with the exact deltas |
-| How is it put together? | [Architecture](#-architecture) and [docs/architecture.md](docs/architecture.md) |
-| Is it safe to load a model? | [Security](#-security) — `.evo` archives are pickle-free and cannot execute code |
+| Are the gradients right? | [Numerical correctness](#numerical-correctness) — finite differences and TensorFlow cross-checks |
+| How is it put together? | [Architecture](#architecture) and [architecture guide](docs/architecture.md) |
+| Is it safe to load a model? | [Security](#security) — `.evo` archives use a pickle-free format |
 | Who decides what ships? | [Governance](GOVERNANCE.md) and [Project policy](PROJECT_POLICY.md) |
 | How do I get help? | [Support](SUPPORT.md) |
 
@@ -198,7 +203,7 @@ for you to discover — the [Roadmap](#-roadmap--all-shipped) says exactly what 
 
 ---
 
-## ⚡ Quick start (60 seconds)
+## Quick start
 
 Use Python 3.9–3.12 and an isolated environment. See the
 [installation guide](docs/getting-started.md) for Windows activation and optional backends.
@@ -242,7 +247,35 @@ history = trainer.fit(train_loader, epochs=25, validation_loader=test_loader)
 
 ---
 
-## 📊 Results from a real run
+## Examples and outputs
+
+The following examples connect runnable code with observable results. Charts
+illustrate recorded repository demonstrations; metrics depend on the exact
+environment, dataset, seed, and revision. Run the examples locally to generate
+your own results.
+
+### Example A — automatic differentiation
+
+<div align="center">
+<img src="docs/assets/autograd-example.svg" alt="Autograd example: input x equals 2, forward computes y equals 4, backward computes gradient 4" width="100%">
+</div>
+
+```python
+import everyo as eo
+
+x = eo.tensor([2.0], requires_grad=True)
+y = x * x
+y.backward()
+print(x.grad)
+```
+
+```text
+[4.]
+```
+
+**Interpretation:** `y = x²`; when `x = 2`, its derivative `dy/dx` is `4`.
+
+### Example B — training and model evaluation
 
 Every image below was produced by the code in this repository, on a CPU, in under a second of training.
 Reproduce them with `python examples/neural_network.py`.
@@ -263,7 +296,7 @@ And the thing a linear model simply cannot do — a curved decision boundary, le
 <img src="docs/assets/decision-boundary.png" alt="Linear model at 88.5% versus EveryO MLP at 99.7% on two moons" width="100%">
 </div>
 
-### Convolution, and what it learns
+### Example C — convolutional features
 
 A CNN built from `Conv2D` and `MaxPool2D` reaches **99.2% with 1,898 parameters** — beating a dense
 network of comparable size (98.5% with 2,410), because convolution shares its weights across the image.
@@ -289,7 +322,7 @@ model = eo.Sequential(
 Tensors are `NHWC`, the same layout TensorFlow uses — so the forward pass is compared against
 `tf.nn.conv2d` **bit for bit** in the test suite, and every gradient against finite differences.
 
-### Attention and transformers
+### Example D — attention and transformers
 
 The same engine runs a transformer. Four attention heads inside an EveryO `TransformerEncoder`,
 each having learned its own routing pattern, on a task where the label is the *first* of 24
@@ -323,7 +356,7 @@ LSTM  7.71e-06     ~560,000x larger
 
 ---
 
-## 🎯 What it actually does
+## Capabilities
 
 | | Available today |
 |---|---|
@@ -352,14 +385,15 @@ LSTM  7.71e-06     ~560,000x larger
 > **Requires a GPU** — the CUDA paths (`eo.cuda.*`, including GPU-resident tensors) need the
 > native extension built against a real NVIDIA toolchain. Everything else on this page runs on CPU.
 > The kernels are checked against NumPy **on hardware that has a GPU**; that check skips in this
-> project's CI, which has none. See the [roadmap](#-roadmap--all-shipped) for exactly what is and is not verified.
+> project's CI, which has none. See [Engineering validation](#engineering-validation)
+> for exactly what is and is not verified.
 >
 > **Still array-in, array-out** — `eo.cuda.add` and friends copy to the device and back on every call.
 > Use `eo.cuda.to_device` when you want a chain of operations to stay resident.
 
 ---
 
-## 🔬 Correctness is the feature
+## Numerical correctness
 
 Anyone can write something that *looks* like a framework. Here is why you can trust this one:
 
@@ -385,7 +419,7 @@ python -m pytest
 
 ---
 
-## 🏗 Architecture
+## Architecture
 
 ```
           everyo.cli              everyo.visualization
@@ -409,7 +443,7 @@ The reasoning behind each decision is in **[docs/architecture.md](docs/architect
 
 ---
 
-## 🚀 CUDA, without the pain
+## Optional CUDA integration
 
 CUDA is **additive, never required**. On a machine without a GPU everything still runs:
 
@@ -431,7 +465,7 @@ Details in **[docs/cuda.md](docs/cuda.md)**.
 
 ---
 
-## 🧪 Mixed precision, ONNX and multi-core training
+## Mixed precision, ONNX and multi-core training
 
 Three things a framework is supposed to grow into. All three are implemented, and all three are
 measured rather than claimed.
@@ -588,7 +622,7 @@ OMP_NUM_THREADS=1 python examples/distributed_training.py
 
 ---
 
-## 📈 Benchmarks
+## Benchmarks
 
 Numbers come from *your* machine, never from this README:
 
@@ -602,31 +636,13 @@ EveryO is a readable reference implementation — when a tuned runtime beats it,
 
 ---
 
-## 🗺 Roadmap — **all shipped**
+## Engineering validation
 
-**Every item on this roadmap is finished. Nothing on it is outstanding.**
+EveryO documents capabilities alongside the checks supporting them. A feature
+implemented in source code is not automatically qualified for a production
+service. Repeat validation in your actual runtime and hardware environment.
 
-The list below started as ten things EveryO could not do. All ten now ship, each
-with tests that check the behaviour rather than assert the feature exists.
-
-- [x] ~~Convolution and pooling layers~~ — `Conv2D`, `MaxPool2D`, `AvgPool2D`
-- [x] ~~Batch / layer normalization~~ — `BatchNorm1D`, `BatchNorm2D`, `LayerNorm`
-- [x] ~~Recurrent layers, attention, transformer blocks~~ — `RNN`, `LSTM`, `GRU`, `MultiHeadAttention`, `TransformerEncoder`
-- [x] ~~Mixed-precision training~~ — `autocast`, `GradScaler`
-- [x] ~~ONNX interoperability~~ — `export_onnx`, verified against ONNX Runtime
-- [x] ~~Distributed training~~ — data parallelism with gradient all-reduce
-- [x] ~~GPU-resident tensors (removing per-call transfers)~~ — `eo.cuda.to_device`
-- [x] ~~Multi-node distributed training~~ — `init_tcp_process_group`
-- [x] ~~Model quantization · profiling tools~~ — `quantize_dynamic`, `profile`
-- [x] ~~A tracing ONNX exporter~~ — `export_onnx_traced`
-
-**10 / 10 shipped.** The last four — GPU-resident tensors, multi-node training,
-quantization and profiling, and the tracing exporter — landed together and are
-covered below.
-
-### What "implemented" means for each one
-
-A finished list is only useful if it says what was actually checked, so:
+### Tested capabilities and limits
 
 | Item | Verified how | Not verified |
 |---|---|---|
@@ -636,18 +652,22 @@ A finished list is only useful if it says what was actually checked, so:
 | **Multi-node training** | All-reduce across two **separate OS processes** over real TCP sockets — different interpreters, nothing shared but the wire | Two physically separate **machines**. No second host is available in CI |
 | **GPU-resident tensors** | Transfer *counting*: a 10-operation chain crosses the host/device boundary 3 times, not 30 | The CUDA kernels themselves. **No GPU, no CUDA toolkit and no NVIDIA driver in this environment** — `tests/test_cuda_resident.py` covers that and skips here |
 
-The GPU row is the one to read carefully. What is proven on CPU is the *design*
-claim — that residency removes per-call transfers — using a stand-in for the
-native extension that counts every crossing. What is **not** proven anywhere in
-CI is that the kernels compute the right answers on real hardware. Those tests
-exist and they skip. Nobody here has run them.
+**Hardware boundary:** CPU-based tests validate the interface and transfer
+logic of GPU-resident tensors, but cannot establish native CUDA kernel accuracy
+without a real GPU. Likewise, two processes communicating over TCP on one host
+are not a substitute for multi-machine distributed testing.
+
+For the production-readiness gates—including security, sustained service load,
+recovery, and deployment evidence—see the
+[production qualification report](docs/production-qualification-2026-11-09.md).
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-The roadmap above is complete, so good first issues now come from
-[the issue tracker](../../issues) rather than from this page.
+Contributions are coordinated through the
+[issue tracker](https://github.com/krishanth7/EveryO/issues) with focused tests
+and reproducible examples.
 
 ```bash
 ./scripts/setup.sh      # venv + dev install
@@ -665,7 +685,7 @@ Before opening your first pull request, it is worth two minutes on
 
 ---
 
-## 💛 Support this project
+## Support the project
 
 If EveryO helped you understand how autograd actually works:
 
@@ -677,7 +697,7 @@ Sponsorship is configured in [`.github/FUNDING.yml`](.github/FUNDING.yml).
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 | | |
 |---|---|
@@ -690,11 +710,11 @@ Sponsorship is configured in [`.github/FUNDING.yml`](.github/FUNDING.yml).
 | [Examples](examples/) | thirteen runnable scripts |
 
 Project documents — governance, policies, support and security — are listed under
-[Governance and project policies](#-governance-and-project-policies).
+[Governance and project policies](#governance-and-project-policies).
 
 ---
 
-## 🧭 Governance and project policies
+## Governance and project policies
 
 EveryO is independently maintained, and how it is run is written down rather than implied.
 If you are deciding whether to depend on this project, contribute to it, or teach with it, these
@@ -719,7 +739,7 @@ grant commit or release access. Security reports go through
 
 ---
 
-## 🔒 Security
+## Security
 
 No API keys. No accounts. No telemetry. No network calls from the core.
 Model loading is pickle-free by design — an `.evo` archive cannot execute code.
@@ -727,7 +747,7 @@ Report vulnerabilities privately through **[SECURITY.md](SECURITY.md)**.
 
 ---
 
-## 📄 License
+## License
 
 [MIT](LICENSE) — use it, fork it, teach with it, ship it.
 
