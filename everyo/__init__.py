@@ -28,6 +28,19 @@ from everyo.advanced_training import (
     random_search,
     save_training_checkpoint,
 )
+from everyo.compression import (
+    FakeQuantLinear,
+    OutputComparison,
+    benchmark_inference,
+    compare_model_outputs,
+    distillation_loss,
+    dynamic_batch_predict,
+    export_onnx_compatible,
+    fake_quantize,
+    model_size_report,
+    prune_linear_channels,
+    prune_unstructured,
+)
 from everyo.config import Config, DeviceConfig, ModelConfig, TrainingConfig, load_config
 from everyo.core.autograd import (
     detect_anomaly,
@@ -226,6 +239,17 @@ from everyo.visualization import (
 )
 
 __all__ = [
+    "FakeQuantLinear",
+    "OutputComparison",
+    "benchmark_inference",
+    "compare_model_outputs",
+    "distillation_loss",
+    "dynamic_batch_predict",
+    "export_onnx_compatible",
+    "fake_quantize",
+    "model_size_report",
+    "prune_linear_channels",
+    "prune_unstructured",
     "ArrayPool",
     "CpuProfile",
     "OptionalCppAxpy",
