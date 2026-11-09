@@ -40,6 +40,12 @@ engineering limitations. Contributions to improve translations are welcome.
 
 ## Executive overview
 
+EveryO is built for developers who want to **understand the math, inspect the
+implementation, and reproduce the result**. It is a compact research and
+education framework—not a drop-in replacement for a production-scale training
+stack. The CPU workflow is the recommended starting point; GPU integrations are
+optional and require separate hardware validation.
+
 | Dimension | Engineering position |
 | --- | --- |
 | Mission | Make neural-computing fundamentals inspectable, testable, and reproducible. |
@@ -48,6 +54,33 @@ engineering limitations. Contributions to improve translations are welcome.
 | Supported workflow | CPU first; optional CUDA acceleration, TensorFlow cross-checks, and ONNX interoperability. |
 | Assurance | Automated tests, finite-difference validation, documented benchmarks, and fail-closed release-evidence helpers. |
 | Production status | **Not independently production-certified.** See the [qualification report](docs/production-qualification-2026-11-09.md). |
+
+### How the framework fits together
+
+![EveryO framework architecture: data and tensors flow through automatic differentiation, neural-network layers, optimization, evaluation, and optional export](docs/assets/framework-architecture.svg)
+
+The core learning loop is straightforward:
+
+1. **Create tensors** from local data using NumPy-backed storage.
+2. **Define the model** with neural-network layers and differentiable operations.
+3. **Calculate the loss** and call `backward()` to propagate gradients.
+4. **Update parameters** with an optimizer and repeat for each training batch.
+5. **Evaluate or export** supported models, with optional integrations installed separately.
+
+All five steps can be explored on a CPU. See the
+[architecture guide](docs/architecture.md) for implementation details and
+[getting started](docs/getting-started.md) for a longer walkthrough.
+
+### Choose your starting point
+
+| If you want to… | Start here | What you will learn |
+| --- | --- | --- |
+| Install and verify the environment | [Getting started](docs/getting-started.md) | Installation, `everyo doctor`, and first run |
+| Understand gradients | [Autograd guide](docs/autograd.md) | Computation graph and derivative propagation |
+| Train a small neural network | [Examples](examples/) | Layers, optimization, and evaluation |
+| Inspect numerical accuracy | [Numerical verification](docs/numerical-verification.md) | Gradient checks and test methodology |
+| Explore the API | [API reference](docs/api-reference.md) | Public modules and supported operations |
+| Assess deployment readiness | [Production qualification](docs/production-qualification-2026-11-09.md) | Evidence, limitations, and remaining gates |
 
 ### Minimal verified example
 
@@ -69,6 +102,29 @@ Expected output:
 This demonstrates the derivative of \(x^2\) at \(x=2\). For a full training
 workflow, see [Quick start](#-quick-start-60-seconds),
 [getting started](docs/getting-started.md), and the [CPU examples](examples/).
+
+<details>
+<summary><strong>Why does this print <code>[4.]</code>?</strong></summary>
+
+`y = x * x` defines the function `y = x²`. During `y.backward()`, EveryO
+applies the chain rule, so the gradient of `y` with respect to `x` is `2x`.
+At `x = 2`, that is `4`. The square brackets indicate a one-element tensor.
+This checks a small, deterministic operation—not end-to-end model quality.
+
+</details>
+
+### What successful setup looks like
+
+```bash
+python -m pip install -e .
+everyo doctor
+```
+
+`everyo doctor` should report a healthy core environment when the package and
+its required dependencies are installed. Optional CUDA or interoperability
+components may be unavailable on CPU-only computers; that does not by itself
+indicate a failed CPU installation. The exact diagnostic text varies with the
+installed environment.
 
 ---
 
