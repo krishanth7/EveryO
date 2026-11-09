@@ -18,7 +18,13 @@ from __future__ import annotations
 from everyo import backends, cuda, datasets, distributed, profiler, quantization, visualization
 from everyo._logging import configure_logging, get_logger
 from everyo.config import Config, DeviceConfig, ModelConfig, TrainingConfig, load_config
-from everyo.core.autograd import enable_grad, no_grad, set_grad_enabled
+from everyo.core.autograd import (
+    detect_anomaly,
+    enable_grad,
+    mutation_guard,
+    no_grad,
+    set_grad_enabled,
+)
 from everyo.core.convolution import avg_pool2d, conv2d, max_pool2d
 from everyo.core.device import Device, device
 from everyo.core.dtype import DTYPES, dtype_name
@@ -81,6 +87,15 @@ from everyo.data import (
     stratified_split,
     train_test_split,
 )
+from everyo.derivatives import (
+    GraphReport,
+    clear_intermediate_grads,
+    graph_report,
+    hessian,
+    hvp,
+    jacobian,
+    jvp,
+)
 from everyo.exceptions import (
     EveryOBackendError,
     EveryOConfigurationError,
@@ -136,6 +151,17 @@ from everyo.precision import (
     is_autocast_enabled,
 )
 from everyo.profiler import Profiler, profile, record_function
+from everyo.quality import (
+    BenchmarkResult,
+    TensorDiagnostic,
+    assert_tensor_valid,
+    benchmark_cpu,
+    compare_benchmarks,
+    index_select,
+    inspect_tensor,
+    logsumexp,
+    safe_assign_,
+)
 from everyo.quantization import (
     QuantizationError,
     QuantizedArray,
@@ -178,6 +204,24 @@ from everyo.visualization import (
 )
 
 __all__ = [
+    "BenchmarkResult",
+    "TensorDiagnostic",
+    "assert_tensor_valid",
+    "benchmark_cpu",
+    "compare_benchmarks",
+    "index_select",
+    "inspect_tensor",
+    "logsumexp",
+    "mutation_guard",
+    "detect_anomaly",
+    "graph_report",
+    "clear_intermediate_grads",
+    "jacobian",
+    "jvp",
+    "hessian",
+    "hvp",
+    "GraphReport",
+    "safe_assign_",
     "GradcheckResult",
     "gradcheck",
     # metadata
