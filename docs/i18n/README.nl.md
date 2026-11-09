@@ -17,6 +17,7 @@ everyo doctor
 
 ```python
 import everyo as eo
+
 x = eo.tensor([2.0], requires_grad=True)
 y = x * x
 y.backward()
