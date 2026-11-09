@@ -15,7 +15,7 @@ import numpy as np
 from everyo.core import autograd
 from everyo.core.device import Device, DeviceLike, resolve_device
 from everyo.core.dtype import DEFAULT_FLOAT_DTYPE, dtype_name, is_floating, resolve_dtype
-from everyo.exceptions import EveryODTypeError, EveryOGradientError
+from everyo.exceptions import EveryODTypeError, EveryOGradientError, EveryOShapeError
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from everyo.core.autograd import Node
@@ -267,6 +267,24 @@ class Tensor:
         from everyo.core import operations as ops
 
         return ops.reshape(self, _normalise_shape(shape))
+
+    def view(self, *shape: int | Sequence[int]) -> Tensor:
+        """Return a differentiable, zero-copy reshape or raise.
+
+        Unlike :meth:`reshape`, this refuses layouts requiring a copy.
+        The resulting tensor shares NumPy storage with its source; do not
+        mutate either while an autograd graph relies on them.
+        """
+        from everyo.core import operations as ops
+
+        requested = _normalise_shape(shape)
+        result = ops.reshape(self, requested)
+        if self.size and not np.shares_memory(self.data, result.data):
+            raise EveryOShapeError(
+                f"Cannot view shape {self.shape} as {requested} without copying; "
+                "use reshape() for copy-permitting behavior."
+            )
+        return result
 
     def transpose(self, *axes: int) -> Tensor:
         """Permute the axes of the tensor."""
