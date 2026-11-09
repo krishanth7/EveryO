@@ -10,6 +10,7 @@ from everyo.serving import CPUModelServer
 
 
 def test_detached_signature_rejects_tampering_and_wrong_keys(tmp_path):
+    pytest.importorskip("cryptography", reason="optional everyo[signing] dependency")
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
