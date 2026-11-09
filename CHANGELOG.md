@@ -8,6 +8,18 @@ All notable changes to EveryO are recorded here. The format follows
 
 ### Added
 
+- Phase 2 CPU derivative inspection: numerical Jacobian, Hessian, JVP and HVP;
+  graph memory reporting, intermediate gradient cleanup, and opt-in non-finite
+  backward anomaly detection. Includes deterministic acceptance tests and
+  documented precision/resource limits; native higher-order autograd is not
+  yet implemented.
+- Phase 1 CPU quality APIs for tensor diagnostics, guarded data replacement,
+  differentiable integer indexing, stable logsumexp and reproducible CPU
+  microbenchmarks with regression comparison.
+- Deterministic randomized numerical tests and CPU-hardening documentation.
+
+### Added
+
 - Public, CPU-only `gradcheck` utility with immutable numerical error reports,
   input validation and regression tests.
 - Numerical verification guide covering finite-difference limitations.
