@@ -142,6 +142,15 @@ from everyo.exceptions import (
     EveryOSerializationError,
     EveryOShapeError,
 )
+from everyo.language_model import (
+    ByteBPETokenizer,
+    CharTokenizer,
+    DecoderBlock,
+    KVCache,
+    TinyDecoderLM,
+    next_token_loss,
+    sample_next_token,
+)
 from everyo.nn import (
     GRU,
     LSTM,
@@ -239,6 +248,13 @@ from everyo.visualization import (
 )
 
 __all__ = [
+    "ByteBPETokenizer",
+    "CharTokenizer",
+    "DecoderBlock",
+    "KVCache",
+    "TinyDecoderLM",
+    "next_token_loss",
+    "sample_next_token",
     "FakeQuantLinear",
     "OutputComparison",
     "benchmark_inference",
