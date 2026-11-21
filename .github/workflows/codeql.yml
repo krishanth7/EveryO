@@ -1,5 +1,10 @@
 name: CodeQL
 
+# Authoritative Advanced CodeQL Configuration for EveryO.
+# IMPORTANT: In GitHub repository Settings -> Security -> Code security -> CodeQL analysis,
+# the "Default setup" MUST be disabled to prevent the error:
+# "CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled".
+
 on:
   push:
     branches: [main]
@@ -32,12 +37,12 @@ jobs:
           python-version: '3.12'
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: +security-and-quality
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{matrix.language}}"
