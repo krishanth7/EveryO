@@ -355,3 +355,200 @@ def run_hardware_benchmark_suite(
         ),
         "forward_backward": run_forward_backward_benchmark(repeats=repeats, seed=seed),
     }
+
+
+def parse_args(argv: Sequence[str] | None = None) -> Any:
+    """Parse command line arguments for the benchmarking CLI."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="everyo.benchmarking",
+        description="EveryO performance, stress, soak and qualification benchmark runner.",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=["quick", "standard", "full", "memory", "concurrency", "soak", "fault-recovery"],
+        default="quick",
+        help="Benchmark execution profile (default: quick).",
+    )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=30.0,
+        help="Duration in seconds for soak profile (default: 30.0s).",
+    )
+    parser.add_argument(
+        "--compare-baseline",
+        action="store_true",
+        help="Compare execution results against baseline record.",
+    )
+    parser.add_argument(
+        "--baseline",
+        type=str,
+        default="benchmarks/baselines/cpu_baseline.json",
+        help="Path to reference baseline JSON for regression comparison.",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default=None,
+        help="Output file path to write machine-readable JSON results.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print machine-readable JSON directly to stdout.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Execute benchmarking profiles and output structured evidence."""
+    import json
+    from pathlib import Path
+
+    from everyo.performance_qualification import (
+        evaluate_performance_regression,
+        run_comprehensive_cpu_benchmark,
+        run_concurrency_correctness_qualification,
+        run_fault_injection_suite,
+        run_soak_test,
+        run_stress_qualification,
+        verify_resource_lifecycle,
+    )
+
+    args = parse_args(argv)
+    profile = args.profile.lower().strip()
+    result_data: dict[str, Any] = {}
+    exit_code = 0
+
+    if profile == "quick":
+        result_data = run_comprehensive_cpu_benchmark(
+            sizes=(32, 128), batch_sizes=(16, 64), repeats=5, warmup=2
+        )
+    elif profile == "standard":
+        result_data = run_comprehensive_cpu_benchmark(
+            sizes=(32, 128, 256), batch_sizes=(16, 64), repeats=10, warmup=3
+        )
+    elif profile == "full":
+        result_data = run_comprehensive_cpu_benchmark(
+            sizes=(32, 128, 256, 512), batch_sizes=(16, 64, 128), repeats=15, warmup=3
+        )
+    elif profile == "memory":
+        result_data = verify_resource_lifecycle(iterations=20)
+    elif profile == "concurrency":
+        c_res = run_concurrency_correctness_qualification(concurrency=4, operations_per_worker=50)
+        s_res = run_stress_qualification()
+        result_data = {
+            "profile": "concurrency",
+            "concurrency_correctness": c_res,
+            "stress_qualification": s_res,
+            "passed": c_res["passed"] and s_res["passed"],
+        }
+        if not result_data["passed"]:
+            exit_code = 1
+    elif profile == "soak":
+        result_data = run_soak_test(
+            duration_seconds=args.duration, sample_interval_seconds=max(1.0, args.duration / 15)
+        )
+        if not result_data["passed_stability"]:
+            exit_code = 1
+    elif profile == "fault-recovery":
+        result_data = run_fault_injection_suite()
+        if not result_data["all_passed"]:
+            exit_code = 1
+
+    # Optional baseline regression check
+    if args.compare_baseline:
+        base_path = Path(args.baseline)
+        if base_path.is_file():
+            base_data = json.loads(base_path.read_text(encoding="utf-8"))
+            comparison = evaluate_performance_regression(result_data, base_data)
+            result_data["regression_comparison"] = comparison
+            if not comparison["passed"]:
+                exit_code = 1
+        else:
+            print(
+                f"Warning: Baseline file {base_path} not found; skipping comparison.",
+                file=sys.stderr,
+            )
+
+    # Output handling
+    if args.output:
+        out_p = Path(args.output)
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        out_p.write_text(json.dumps(result_data, indent=2), encoding="utf-8")
+        print(f"Results written to {out_p}")
+
+    if args.json:
+        print(json.dumps(result_data, indent=2))
+    else:
+        print(
+            f"\n==================== EveryO Benchmark Report ({profile.upper()}) ===================="
+        )
+        if "duration_seconds" in result_data:
+            print(f"Duration: {result_data['duration_seconds']:.2f}s")
+        if "benchmarks" in result_data:
+            benchmarks = result_data["benchmarks"]
+            print(
+                f"\n{'Benchmark ID':<30} {'Median (ms)':<14} {'p95 (ms)':<12} {'Throughput (ops/s)':<20}"
+            )
+            print("-" * 78)
+            for b_id, b_val in benchmarks.items():
+                print(
+                    f"{b_id:<30} {b_val['median_ms']:<14.4f} {b_val['p95_ms']:<12.4f} {b_val['throughput_per_second']:<20.1f}"
+                )
+        if "checks" in result_data:
+            print("\nLifecycle Checks:")
+            for c_name, c_val in result_data["checks"].items():
+                status = "PASS" if c_val.get("passed") else "FAIL"
+                print(f"  [{status}] {c_name}: delta_rss={c_val.get('delta_rss_bytes', 0)} bytes")
+        if "concurrency_correctness" in result_data:
+            c = result_data["concurrency_correctness"]
+            s = result_data["stress_qualification"]
+            print(f"\nConcurrency Correctness: {'PASS' if c['passed'] else 'FAIL'}")
+            print(
+                f"  Workers: {c['concurrency']}, Total Ops: {c['total_operations']}, RPS: {c['throughput_rps']:.1f}"
+            )
+            print(
+                f"  p50: {c['p50_ms']:.4f}ms, p95: {c['p95_ms']:.4f}ms, p99: {c['p99_ms']:.4f}ms, Corruptions: {c['corruptions_detected']}"
+            )
+            print(f"\nStress Qualification: {'PASS' if s['passed'] else 'FAIL'}")
+            print(
+                f"  Requests: {s['total_requests']}, RPS: {s['throughput_rps']:.1f}, Error Rate: {s['error_rate'] * 100:.2f}%"
+            )
+            print(f"  p50: {s['p50_ms']:.4f}ms, p95: {s['p95_ms']:.4f}ms, p99: {s['p99_ms']:.4f}ms")
+        if "scenarios" in result_data:
+            print(
+                f"\nFault Scenarios ({result_data['passed_scenarios']}/{result_data['total_scenarios']} passed):"
+            )
+            for s in result_data["scenarios"]:
+                status = "PASS" if s["passed"] else "FAIL"
+                print(f"  [{status}] ({s['category']}) {s['name']}: {s['detail']}")
+        if "passed_stability" in result_data:
+            print(f"\nSoak Stability: {'PASS' if result_data['passed_stability'] else 'FAIL'}")
+            print(
+                f"  Completed Ops: {result_data['completed_operations']}, Overall RPS: {result_data['overall_throughput_rps']:.1f}"
+            )
+            print(
+                f"  RSS Growth: {result_data['rss_growth_pct']:.2f}%, Latency Drift: {result_data['latency_drift_pct']:.2f}%"
+            )
+        if "regression_comparison" in result_data:
+            comp = result_data["regression_comparison"]
+            print(
+                f"\nRegression Comparison: {'PASS' if comp['passed'] else 'FAIL'} ({comp['warning_count']} warnings, {comp['failure_count']} failures)"
+            )
+            for f in comp["failures"]:
+                print(f"  [FAIL] {f}")
+            for w in comp["warnings"]:
+                print(f"  [WARN] {w}")
+        print("==============================================================================\n")
+
+    return exit_code
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())

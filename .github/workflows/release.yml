@@ -130,7 +130,7 @@ jobs:
           python scripts/generate_sbom.py --format spdx --output dist/spdx-sbom.json --deterministic
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@c074443f1a5fb4a482973336338ab362d2e429b6  # v2.2.3
+        uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2  # v2.2.3
         with:
           subject-path: "dist/*"
 

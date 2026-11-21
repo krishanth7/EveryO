@@ -1,0 +1,71 @@
+"""CLI benchmark for sustained long-duration soak execution and telemetry degradation monitoring."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from everyo.performance_qualification import run_soak_test
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Execute sustained CPU soak test with degradation monitoring"
+    )
+    parser.add_argument(
+        "--duration", type=float, default=30.0, help="Test duration in seconds (e.g. 300 for 5 min)"
+    )
+    parser.add_argument(
+        "--sample-interval", type=float, default=2.0, help="Seconds between telemetry samples"
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=32, help="Microbatch size for continuous inference"
+    )
+    parser.add_argument("--output", "-o", type=str, default=None, help="Output JSON path")
+    args = parser.parse_args(argv)
+
+    print(
+        f"Starting EveryO Soak Benchmark (Duration: {args.duration:.1f}s, Interval: {args.sample_interval:.1f}s)..."
+    )
+
+    def progress(sample):
+        rss_mb = (sample.rss_bytes or 0) / (1024 * 1024)
+        print(
+            f"  [{sample.elapsed_seconds:>5.1f}s] completed={sample.completed_ops:<6} rps={sample.instantaneous_rps:>7.1f} p95={sample.p95_latency_ms:>6.3f}ms rss={rss_mb:>6.1f}MB"
+        )
+
+    res = run_soak_test(
+        duration_seconds=args.duration,
+        sample_interval_seconds=args.sample_interval,
+        batch_size=args.batch_size,
+        progress_callback=progress,
+    )
+
+    if args.output:
+        out_p = Path(args.output)
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        out_p.write_text(json.dumps(res, indent=2), encoding="utf-8")
+        print(f"\nWrote soak telemetry to {out_p}")
+
+    status = "PASS" if res["passed_stability"] else "FAIL"
+    print(
+        f"\n==================== EveryO Soak Qualification Summary ({status}) ===================="
+    )
+    print(
+        f"Completed Operations: {res['completed_operations']}, Overall RPS: {res['overall_throughput_rps']:.1f}"
+    )
+    print(
+        f"Initial RSS: {res['initial_rss_bytes'] / (1024 * 1024):.1f} MB, Final RSS: {res['final_rss_bytes'] / (1024 * 1024):.1f} MB"
+    )
+    print(
+        f"RSS Growth: {res['rss_growth_pct']:.2f}%, Latency Drift: {res['latency_drift_pct']:.2f}%"
+    )
+    print(f"Stability Verdict: {status}")
+    print("=====================================================================================\n")
+    return 0 if res["passed_stability"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

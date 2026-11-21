@@ -1,0 +1,647 @@
+{
+  "benchmark_suite_version": "21.3.1",
+  "timestamp": "2026-11-21T15:01:28Z",
+  "duration_seconds": 0.31992830000001504,
+  "environment": {
+    "everyo_version": "0.5.0",
+    "python_version": "3.15.2",
+    "platform": "Windows 11 (AMD64)",
+    "processor": "Intel64 Family 6 Model 181 Stepping 0, GenuineIntel",
+    "cpu_count_logical": 14,
+    "numpy_version": "2.5.5",
+    "process_pid": 12656,
+    "initial_rss_bytes": 42663936
+  },
+  "total_benchmarks": 24,
+  "benchmarks": {
+    "tensor_matmul_32x32": {
+      "benchmark_id": "tensor_matmul_32x32",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          32,
+          32
+        ],
+        "operation": "matmul"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.005500000042957254,
+      "mean_ms": 0.005779999992228113,
+      "stddev_ms": 0.0006762642433100517,
+      "min_ms": 0.0051999999186591594,
+      "max_ms": 0.007199999913609645,
+      "p90_ms": 0.006389999987277406,
+      "p95_ms": 0.006794999950443525,
+      "p99_ms": 0.007118999920976421,
+      "throughput_per_second": 181818.18039810733,
+      "numpy_baseline_median_ms": 0.0019000000293090125,
+      "speedup_vs_numpy": 0.3454545480853152,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_add_32x32": {
+      "benchmark_id": "tensor_add_32x32",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          32,
+          32
+        ],
+        "operation": "add"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.00555000002577799,
+      "mean_ms": 0.005670000007285125,
+      "stddev_ms": 0.0003529243084326876,
+      "min_ms": 0.00529999999798747,
+      "max_ms": 0.00620000002982124,
+      "p90_ms": 0.00620000002982124,
+      "p95_ms": 0.00620000002982124,
+      "p99_ms": 0.00620000002982124,
+      "throughput_per_second": 180180.17934330038,
+      "numpy_baseline_median_ms": 0.0008000000093488779,
+      "speedup_vs_numpy": 0.1441441451591228,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_mul_32x32": {
+      "benchmark_id": "tensor_mul_32x32",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          32,
+          32
+        ],
+        "operation": "mul"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.005650000048262882,
+      "mean_ms": 0.005689999989044736,
+      "stddev_ms": 0.00028848260920631924,
+      "min_ms": 0.005200000032345997,
+      "max_ms": 0.006099999950492929,
+      "p90_ms": 0.0060099999814156035,
+      "p95_ms": 0.006054999965954266,
+      "p99_ms": 0.006090999953585197,
+      "throughput_per_second": 176991.14893060125,
+      "numpy_baseline_median_ms": 0.0007999999525054591,
+      "speedup_vs_numpy": 0.14159291073836763,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_relu_32x32": {
+      "benchmark_id": "tensor_relu_32x32",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          32,
+          32
+        ],
+        "operation": "relu"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.0043999999661537,
+      "mean_ms": 0.00424999998358544,
+      "stddev_ms": 0.00033416565831639763,
+      "min_ms": 0.003799999944931187,
+      "max_ms": 0.004699999976764957,
+      "p90_ms": 0.004520000038610306,
+      "p95_ms": 0.004610000007687631,
+      "p99_ms": 0.004681999982949492,
+      "throughput_per_second": 227272.72902098656,
+      "numpy_baseline_median_ms": 0.0009999999974752427,
+      "speedup_vs_numpy": 0.22727272844717808,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_sum_32x32": {
+      "benchmark_id": "tensor_sum_32x32",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          32,
+          32
+        ],
+        "operation": "sum"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.002749999964635208,
+      "mean_ms": 0.0028599999723155634,
+      "stddev_ms": 0.00036878178037489393,
+      "min_ms": 0.002499999936844688,
+      "max_ms": 0.0036999999792897142,
+      "p90_ms": 0.0033400000006622577,
+      "p95_ms": 0.0035199999899759855,
+      "p99_ms": 0.0036639999814269686,
+      "throughput_per_second": 363636.36831269984,
+      "numpy_baseline_median_ms": 0.0010999999631167157,
+      "speedup_vs_numpy": 0.39999999173186623,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_matmul_128x128": {
+      "benchmark_id": "tensor_matmul_128x128",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          128,
+          128
+        ],
+        "operation": "matmul"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.26120000001128574,
+      "mean_ms": 0.26174000000764863,
+      "stddev_ms": 0.07248808635296555,
+      "min_ms": 0.16670000002250163,
+      "max_ms": 0.43029999994814716,
+      "p90_ms": 0.2989000000752639,
+      "p95_ms": 0.3646000000117054,
+      "p99_ms": 0.41715999996085884,
+      "throughput_per_second": 3828.483920202116,
+      "numpy_baseline_median_ms": 0.1464000000055421,
+      "speedup_vs_numpy": 0.5604900459388076,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_add_128x128": {
+      "benchmark_id": "tensor_add_128x128",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          128,
+          128
+        ],
+        "operation": "add"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.006499999983589078,
+      "mean_ms": 0.006429999996271363,
+      "stddev_ms": 0.00018885620698312497,
+      "min_ms": 0.006199999916134402,
+      "max_ms": 0.006699999971715442,
+      "p90_ms": 0.006610000002638117,
+      "p95_ms": 0.0066549999871767795,
+      "p99_ms": 0.00669099997480771,
+      "throughput_per_second": 153846.15423457805,
+      "numpy_baseline_median_ms": 0.0017999999499807018,
+      "speedup_vs_numpy": 0.2769230699269638,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_mul_128x128": {
+      "benchmark_id": "tensor_mul_128x128",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          128,
+          128
+        ],
+        "operation": "mul"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.0065000000404324965,
+      "mean_ms": 0.006480000001829467,
+      "stddev_ms": 0.00039665269713943125,
+      "min_ms": 0.005899999905523146,
+      "max_ms": 0.007200000027296483,
+      "p90_ms": 0.006930000017746352,
+      "p95_ms": 0.007065000022521417,
+      "p99_ms": 0.0071730000263414695,
+      "throughput_per_second": 153846.15288917167,
+      "numpy_baseline_median_ms": 0.0020999999605919584,
+      "speedup_vs_numpy": 0.32307691500448493,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_relu_128x128": {
+      "benchmark_id": "tensor_relu_128x128",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          128,
+          128
+        ],
+        "operation": "relu"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.007400000015422847,
+      "mean_ms": 0.007889999994858954,
+      "stddev_ms": 0.0012635488418168456,
+      "min_ms": 0.007099999947968172,
+      "max_ms": 0.011000000085914508,
+      "p90_ms": 0.009470000100009202,
+      "p95_ms": 0.010235000092961853,
+      "p99_ms": 0.010847000087323977,
+      "throughput_per_second": 135135.13485349074,
+      "numpy_baseline_median_ms": 0.0036999999792897142,
+      "speedup_vs_numpy": 0.49999999615922847,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_sum_128x128": {
+      "benchmark_id": "tensor_sum_128x128",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          128,
+          128
+        ],
+        "operation": "sum"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.005399999963628943,
+      "mean_ms": 0.00540999996019309,
+      "stddev_ms": 0.00011005050156273643,
+      "min_ms": 0.0051999999186591594,
+      "max_ms": 0.005600000008598727,
+      "p90_ms": 0.005509999937203247,
+      "p95_ms": 0.005554999972900987,
+      "p99_ms": 0.005591000001459179,
+      "throughput_per_second": 185185.18643247796,
+      "numpy_baseline_median_ms": 0.0036499999964689778,
+      "speedup_vs_numpy": 0.6759259298246515,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_matmul_256x256": {
+      "benchmark_id": "tensor_matmul_256x256",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          256,
+          256
+        ],
+        "operation": "matmul"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 1.1870999999814558,
+      "mean_ms": 6.6939199999865195,
+      "stddev_ms": 11.844104950348644,
+      "min_ms": 0.4715999999689302,
+      "max_ms": 39.01359999997567,
+      "p90_ms": 12.552159999950153,
+      "p95_ms": 25.782879999962883,
+      "p99_ms": 36.36745599997312,
+      "throughput_per_second": 842.3890152604005,
+      "numpy_baseline_median_ms": 1.4684999999872161,
+      "speedup_vs_numpy": 1.237048268899129,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_add_256x256": {
+      "benchmark_id": "tensor_add_256x256",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          256,
+          256
+        ],
+        "operation": "add"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.01215000003185196,
+      "mean_ms": 0.012419999995927355,
+      "stddev_ms": 0.0018237933642660281,
+      "min_ms": 0.010299999985363684,
+      "max_ms": 0.016200000004573667,
+      "p90_ms": 0.014759999987745687,
+      "p95_ms": 0.015479999996159675,
+      "p99_ms": 0.01605600000289087,
+      "throughput_per_second": 82304.5265332049,
+      "numpy_baseline_median_ms": 0.007100000004811591,
+      "speedup_vs_numpy": 0.5843621387817705,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_mul_256x256": {
+      "benchmark_id": "tensor_mul_256x256",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          256,
+          256
+        ],
+        "operation": "mul"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.01370000001088556,
+      "mean_ms": 0.013720000015382539,
+      "stddev_ms": 0.0007450578257331403,
+      "min_ms": 0.012099999935344385,
+      "max_ms": 0.014900000110174005,
+      "p90_ms": 0.01435999998875559,
+      "p95_ms": 0.014630000049464797,
+      "p99_ms": 0.014846000098032164,
+      "throughput_per_second": 72992.70067192946,
+      "numpy_baseline_median_ms": 0.006350000035126868,
+      "speedup_vs_numpy": 0.46350365183075704,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_relu_256x256": {
+      "benchmark_id": "tensor_relu_256x256",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          256,
+          256
+        ],
+        "operation": "relu"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.02340000003187015,
+      "mean_ms": 0.023730000020805164,
+      "stddev_ms": 0.00183245433401701,
+      "min_ms": 0.020899999981338624,
+      "max_ms": 0.02700000004551839,
+      "p90_ms": 0.026549999995495455,
+      "p95_ms": 0.026775000020506923,
+      "p99_ms": 0.026955000040516097,
+      "throughput_per_second": 42735.04267683879,
+      "numpy_baseline_median_ms": 0.018549999992956145,
+      "speedup_vs_numpy": 0.7927350413543403,
+      "memory_rss_bytes": 49516544
+    },
+    "tensor_sum_256x256": {
+      "benchmark_id": "tensor_sum_256x256",
+      "category": "tensor_op",
+      "workload": {
+        "shape": [
+          256,
+          256
+        ],
+        "operation": "sum"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.01435000001492881,
+      "mean_ms": 0.014130000022305467,
+      "stddev_ms": 0.0012311241393776107,
+      "min_ms": 0.01240000005964248,
+      "max_ms": 0.016100000038932194,
+      "p90_ms": 0.01511000007212715,
+      "p95_ms": 0.01560500005552967,
+      "p99_ms": 0.01600100004225169,
+      "throughput_per_second": 69686.41107732856,
+      "numpy_baseline_median_ms": 0.010949999989406933,
+      "speedup_vs_numpy": 0.7630662005585549,
+      "memory_rss_bytes": 49516544
+    },
+    "dense_forward_bs16": {
+      "benchmark_id": "dense_forward_bs16",
+      "category": "neural_comp",
+      "workload": {
+        "batch_size": 16,
+        "in": 64,
+        "out": 32,
+        "step": "forward"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.019100000031357922,
+      "mean_ms": 0.019460000021354062,
+      "stddev_ms": 0.0022993718893703184,
+      "min_ms": 0.016599999980826396,
+      "max_ms": 0.024899999971239595,
+      "p90_ms": 0.021030000073096744,
+      "p95_ms": 0.022965000022168166,
+      "p99_ms": 0.02451299998142531,
+      "throughput_per_second": 837696.3337032243,
+      "numpy_baseline_median_ms": null,
+      "speedup_vs_numpy": null,
+      "memory_rss_bytes": 50769920
+    },
+    "mlp_train_step_bs16": {
+      "benchmark_id": "mlp_train_step_bs16",
+      "category": "neural_comp",
+      "workload": {
+        "batch_size": 16,
+        "in": 64,
+        "out": 32,
+        "step": "train_step"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.08865000000923828,
+      "mean_ms": 0.08914000001141176,
+      "stddev_ms": 0.007771200408360746,
+      "min_ms": 0.08009999999103457,
+      "max_ms": 0.10780000002341694,
+      "p90_ms": 0.09547000006477901,
+      "p95_ms": 0.10163500004409796,
+      "p99_ms": 0.10656700002755315,
+      "throughput_per_second": 180485.05356269178,
+      "numpy_baseline_median_ms": null,
+      "speedup_vs_numpy": null,
+      "memory_rss_bytes": 50769920
+    },
+    "softmax_bs16": {
+      "benchmark_id": "softmax_bs16",
+      "category": "neural_comp",
+      "workload": {
+        "batch_size": 16,
+        "features": 32,
+        "op": "softmax"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.008250000007592462,
+      "mean_ms": 0.008160000004409085,
+      "stddev_ms": 0.00031692968931699435,
+      "min_ms": 0.007600000003549212,
+      "max_ms": 0.008600000001024455,
+      "p90_ms": 0.00841999996055165,
+      "p95_ms": 0.008509999980788052,
+      "p99_ms": 0.008581999996977174,
+      "throughput_per_second": 1939393.9376091182,
+      "numpy_baseline_median_ms": null,
+      "speedup_vs_numpy": null,
+      "memory_rss_bytes": 50769920
+    },
+    "dense_forward_bs64": {
+      "benchmark_id": "dense_forward_bs64",
+      "category": "neural_comp",
+      "workload": {
+        "batch_size": 64,
+        "in": 64,
+        "out": 32,
+        "step": "forward"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.017600000035145058,
+      "mean_ms": 0.017379999985678296,
+      "stddev_ms": 0.0010390166390277426,
+      "min_ms": 0.015699999948992627,
+      "max_ms": 0.01889999998638814,
+      "p90_ms": 0.018540000007760682,
+      "p95_ms": 0.01871999999707441,
+      "p99_ms": 0.018863999988525393,
+      "throughput_per_second": 3636363.629102261,
+      "numpy_baseline_median_ms": null,
+      "speedup_vs_numpy": null,
+      "memory_rss_bytes": 50769920
+    },
+    "mlp_train_step_bs64": {
+      "benchmark_id": "mlp_train_step_bs64",
+      "category": "neural_comp",
+      "workload": {
+        "batch_size": 64,
+        "in": 64,
+        "out": 32,
+        "step": "train_step"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.09395000000722575,
+      "mean_ms": 0.09661000000278364,
+      "stddev_ms": 0.005923671892355492,
+      "min_ms": 0.09239999997134873,
+      "max_ms": 0.1098999999840089,
+      "p90_ms": 0.10548999996444763,
+      "p95_ms": 0.10769499997422827,
+      "p99_ms": 0.10945899998205277,
+      "throughput_per_second": 681213.4113366442,
+      "numpy_baseline_median_ms": null,
+      "speedup_vs_numpy": null,
+      "memory_rss_bytes": 50769920
+    },
+    "softmax_bs64": {
+      "benchmark_id": "softmax_bs64",
+      "category": "neural_comp",
+      "workload": {
+        "batch_size": 64,
+        "features": 32,
+        "op": "softmax"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 10,
+      "median_ms": 0.013150000029327202,
+      "mean_ms": 0.013119999994160025,
+      "stddev_ms": 0.0004315347234497588,
+      "min_ms": 0.012499999911597115,
+      "max_ms": 0.013799999919683614,
+      "p90_ms": 0.013530000012451637,
+      "p95_ms": 0.013664999966067626,
+      "p99_ms": 0.013772999928960417,
+      "throughput_per_second": 4866920.141237022,
+      "numpy_baseline_median_ms": null,
+      "speedup_vs_numpy": null,
+      "memory_rss_bytes": 50769920
+    },
+    "model_initialization_3layer": {
+      "benchmark_id": "model_initialization_3layer",
+      "category": "model_op",
+      "workload": {
+        "architecture": "128->64->32->10",
+        "op": "init"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 3,
+      "measured_iterations": 5,
+      "median_ms": 0.1164000000244414,
+      "mean_ms": 0.11648000004242931,
+      "stddev_ms": 0.0021229695962327456,
+      "min_ms": 0.11440000002949091,
+      "max_ms": 0.11979999999311985,
+      "p90_ms": 0.11864000002788089,
+      "p95_ms": 0.11922000001050037,
+      "p99_ms": 0.11968399999659596,
+      "throughput_per_second": 8591.065290292288,
+      "numpy_baseline_median_ms": null,
+      "speedup_vs_numpy": null,
+      "memory_rss_bytes": 51040256
+    },
+    "model_serialization_eo": {
+      "benchmark_id": "model_serialization_eo",
+      "category": "model_op",
+      "workload": {
+        "op": "save_to_disk"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 1,
+      "measured_iterations": 5,
+      "median_ms": 2.197599999931299,
+      "mean_ms": 2.3001999999678446,
+      "stddev_ms": 0.3538169088533988,
+      "min_ms": 1.984600000014325,
+      "max_ms": 2.8834999999389765,
+      "p90_ms": 2.6713799999697585,
+      "p95_ms": 2.7774399999543675,
+      "p99_ms": 2.8622879999420547,
+      "throughput_per_second": 455.0418638656998,
+      "numpy_baseline_median_ms": null,
+      "speedup_vs_numpy": null,
+      "memory_rss_bytes": 51040256
+    },
+    "model_deserialization_eo": {
+      "benchmark_id": "model_deserialization_eo",
+      "category": "model_op",
+      "workload": {
+        "op": "load_from_disk"
+      },
+      "dtype": "float32",
+      "backend": "numpy_cpu",
+      "warmup_iterations": 1,
+      "measured_iterations": 5,
+      "median_ms": 0.932300000044961,
+      "mean_ms": 1.004519999992226,
+      "stddev_ms": 0.17707155897655072,
+      "min_ms": 0.895000000014079,
+      "max_ms": 1.3165999999955602,
+      "p90_ms": 1.1793199999601711,
+      "p95_ms": 1.2479599999778657,
+      "p99_ms": 1.3028719999920213,
+      "throughput_per_second": 1072.6161106422546,
+      "numpy_baseline_median_ms": null,
+      "speedup_vs_numpy": null,
+      "memory_rss_bytes": 51040256
+    }
+  }
+}

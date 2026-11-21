@@ -1,0 +1,60 @@
+name: Performance & Reliability Qualification
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  performance-qualification:
+    name: CPU Performance, Stress, Soak & Regression Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install EveryO with development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run Phase 21 performance qualification test suite
+        run: python -m pytest tests/test_phase21_performance_baseline.py tests/test_phase21_memory_profiling.py tests/test_phase21_concurrency.py tests/test_phase21_stress.py tests/test_phase21_soak.py tests/test_phase21_fault_injection.py tests/test_phase21_recovery.py tests/test_phase21_regression_gates.py -v
+
+      - name: Run CPU benchmark and evaluate regression gates
+        run: python -m everyo.benchmarking --profile quick --compare-baseline --output benchmark-results.json
+
+      - name: Run concurrency and stress qualification
+        run: python -m everyo.benchmarking --profile concurrency
+
+      - name: Run short soak stability qualification
+        run: python -m everyo.benchmarking --profile soak --duration 10
+
+      - name: Run fault-recovery qualification
+        run: python -m everyo.benchmarking --profile fault-recovery
+
+      - name: Upload benchmark qualification artifacts
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1  # v4.6.1
+        with:
+          name: cpu-performance-benchmark-results
+          path: benchmark-results.json
+          retention-days: 90
