@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import re
+import subprocess
 from typing import Any
 
 __all__ = [
@@ -20,43 +22,203 @@ __all__ = [
 _LOGGER = logging.getLogger(__name__)
 
 
-def detect_system_memory() -> dict[str, int]:
-    """Return physical memory statistics (total, free, used) in bytes."""
+def _detect_memory_windows() -> tuple[int, int]:
+    """Detect total and available memory on Windows via GlobalMemoryStatusEx."""
     total = 0
     free = 0
     try:
-        if platform.system() == "Windows":
-            import ctypes
+        import ctypes
 
-            class _MEMORYSTATUSEX(ctypes.Structure):
-                _fields_ = [
-                    ("dwLength", ctypes.c_ulong),
-                    ("dwMemoryLoad", ctypes.c_ulong),
-                    ("ullTotalPhys", ctypes.c_ulonglong),
-                    ("ullAvailPhys", ctypes.c_ulonglong),
-                    ("ullTotalPageFile", ctypes.c_ulonglong),
-                    ("ullAvailPageFile", ctypes.c_ulonglong),
-                    ("ullTotalVirtual", ctypes.c_ulonglong),
-                    ("ullAvailVirtual", ctypes.c_ulonglong),
-                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
-                ]
+        class _MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
 
-            stat = _MEMORYSTATUSEX()
-            stat.dwLength = ctypes.sizeof(stat)
-            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
-                total = int(stat.ullTotalPhys)
-                free = int(stat.ullAvailPhys)
+        stat = _MEMORYSTATUSEX()
+        stat.dwLength = ctypes.sizeof(stat)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+            total = int(stat.ullTotalPhys)
+            free = int(stat.ullAvailPhys)
+    except Exception as exc:
+        _LOGGER.debug("Windows GlobalMemoryStatusEx failed: %s", exc)
+    return total, free
+
+
+def _detect_memory_macos() -> tuple[int, int]:
+    """Detect total and available physical memory on macOS (Darwin).
+
+    - Total physical memory is obtained from sysctl hw.memsize.
+    - Available memory is estimated from vm_stat by extracting the reported
+      Mach VM page size (4KB on Intel, 16KB on Apple Silicon ARM64) and summing
+      unallocated (free), cached/reclaimable (inactive), and pre-fetched (speculative) pages.
+
+    Returns:
+        tuple[int, int]: (total_bytes, free_bytes).
+    """
+    total = 0
+    free = 0
+
+    # 1. Total physical memory via sysctl hw.memsize
+    try:
+        res = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if res.returncode == 0 and res.stdout.strip().isdigit():
+            total = int(res.stdout.strip())
+        else:
+            # Fallback: sysctl without -n (outputs 'hw.memsize: <bytes>')
+            res = subprocess.run(
+                ["sysctl", "hw.memsize"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if res.returncode == 0 and ":" in res.stdout:
+                val = res.stdout.partition(":")[2].strip()
+                if val.isdigit():
+                    total = int(val)
+    except Exception as exc:
+        _LOGGER.debug("macOS sysctl hw.memsize failed: %s", exc)
+
+    if total <= 0:
+        try:
+            if (
+                hasattr(os, "sysconf")
+                and "SC_PAGE_SIZE" in os.sysconf_names
+                and "SC_PHYS_PAGES" in os.sysconf_names
+            ):
+                page_size = int(os.sysconf("SC_PAGE_SIZE"))
+                total = int(page_size * int(os.sysconf("SC_PHYS_PAGES")))
+        except Exception:
+            pass
+
+    # 2. VM page statistics via vm_stat
+    try:
+        vm_res = subprocess.run(
+            ["vm_stat"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if vm_res.returncode == 0 and vm_res.stdout:
+            page_size = 4096  # default fallback
+            m = re.search(r"page size of (\d+) bytes", vm_res.stdout, re.IGNORECASE)
+            if m:
+                page_size = int(m.group(1))
+            elif hasattr(os, "sysconf") and "SC_PAGE_SIZE" in os.sysconf_names:
+                page_size = int(os.sysconf("SC_PAGE_SIZE"))
+
+            pages_free = 0
+            pages_inactive = 0
+            pages_speculative = 0
+
+            for line in vm_res.stdout.splitlines():
+                line = line.strip()
+                if not line or ":" not in line:
+                    continue
+                key, _, val = line.partition(":")
+                key = key.strip().lower().strip('"')
+                raw_num = val.strip().rstrip(".")
+                if not raw_num.isdigit():
+                    continue
+                num = int(raw_num)
+                if key == "pages free":
+                    pages_free = num
+                elif key == "pages inactive":
+                    pages_inactive = num
+                elif key == "pages speculative":
+                    pages_speculative = num
+
+            avail_pages = pages_free + pages_inactive + pages_speculative
+            if avail_pages > 0 and page_size > 0 and total > 0:
+                free = min(avail_pages * page_size, total)
+            else:
+                free = 0
+    except Exception as exc:
+        _LOGGER.debug("macOS vm_stat parsing failed: %s", exc)
+
+    return total, free
+
+
+def _detect_memory_linux() -> tuple[int, int]:
+    """Detect total and available memory on Linux."""
+    total = 0
+    free = 0
+    if (
+        hasattr(os, "sysconf")
+        and "SC_PAGE_SIZE" in os.sysconf_names
+        and "SC_PHYS_PAGES" in os.sysconf_names
+    ):
+        page_size = int(os.sysconf("SC_PAGE_SIZE"))
+        total = int(page_size * int(os.sysconf("SC_PHYS_PAGES")))
+        if "SC_AVPHYS_PAGES" in os.sysconf_names:
+            free = int(page_size * int(os.sysconf("SC_AVPHYS_PAGES")))
+
+    # Fallback to /proc/meminfo if free or total is unpopulated
+    if (free <= 0 or total <= 0) and os.path.exists("/proc/meminfo"):
+        try:
+            with open("/proc/meminfo", encoding="utf-8") as fh:
+                for line in fh:
+                    if line.startswith("MemAvailable:") and free <= 0:
+                        parts = line.split()
+                        if len(parts) >= 2 and parts[1].isdigit():
+                            free = int(parts[1]) * 1024
+                    elif line.startswith("MemTotal:") and total <= 0:
+                        parts = line.split()
+                        if len(parts) >= 2 and parts[1].isdigit():
+                            total = int(parts[1]) * 1024
+        except Exception as exc:
+            _LOGGER.debug("/proc/meminfo parsing failed: %s", exc)
+
+    return total, free
+
+
+def detect_system_memory() -> dict[str, int]:
+    """Return physical memory statistics (total, free, used) in bytes.
+
+    Platform-specific detection:
+    - Windows: GlobalMemoryStatusEx via ctypes.
+    - macOS (Darwin): Total physical memory via sysctl hw.memsize,
+      available memory estimated via vm_stat (free + inactive + speculative pages)
+      using the dynamically reported Mach page size (4KB on Intel, 16KB on Apple Silicon).
+    - Linux: os.sysconf with /proc/meminfo fallback.
+    - Generic POSIX: os.sysconf (SC_PAGE_SIZE, SC_PHYS_PAGES, SC_AVPHYS_PAGES).
+    """
+    total = 0
+    free = 0
+    try:
+        sys_name = platform.system()
+        if sys_name == "Windows":
+            total, free = _detect_memory_windows()
+        elif sys_name == "Darwin":
+            total, free = _detect_memory_macos()
+        elif sys_name == "Linux":
+            total, free = _detect_memory_linux()
         elif (
             hasattr(os, "sysconf")
             and "SC_PAGE_SIZE" in os.sysconf_names
             and "SC_PHYS_PAGES" in os.sysconf_names
         ):
-            page_size = os.sysconf("SC_PAGE_SIZE")
-            total = int(page_size * os.sysconf("SC_PHYS_PAGES"))
+            page_size = int(os.sysconf("SC_PAGE_SIZE"))
+            total = int(page_size * int(os.sysconf("SC_PHYS_PAGES")))
             if "SC_AVPHYS_PAGES" in os.sysconf_names:
-                free = int(page_size * os.sysconf("SC_AVPHYS_PAGES"))
-    except Exception:
-        pass
+                free = int(page_size * int(os.sysconf("SC_AVPHYS_PAGES")))
+    except Exception as exc:
+        _LOGGER.debug("detect_system_memory failed: %s", exc)
+
+    total = max(0, total)
+    free = max(0, min(free, total) if total > 0 else 0)
     used = max(0, total - free)
     return {"total_bytes": total, "free_bytes": free, "used_bytes": used}
 
@@ -139,8 +301,6 @@ def _detect_cpu_windows() -> dict[str, Any]:
 
 def _detect_cpu_macos() -> dict[str, Any]:
     """Read CPU info from macOS sysctl."""
-    import subprocess
-
     result: dict[str, Any] = {}
     try:
         out = subprocess.check_output(

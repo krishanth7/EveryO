@@ -157,10 +157,19 @@ class TestHardwareQualificationRegression:
                 assert mem["total_bytes"] >= 0
                 assert mem["free_bytes"] >= 0
 
-        # CPU device memory must be positive
+        # CPU device memory must be non-negative and self-consistent
         cpu_mem = eo.backends.get_backend("cpu").get_device_memory(0)
-        assert cpu_mem["total_bytes"] > 0
-        assert cpu_mem["free_bytes"] > 0
+        assert cpu_mem["total_bytes"] >= 0
+        assert cpu_mem["free_bytes"] >= 0
+        assert cpu_mem["used_bytes"] >= 0
+        assert cpu_mem["total_bytes"] == cpu_mem["free_bytes"] + cpu_mem["used_bytes"]
+
+        # On primary supported platforms (Windows, Linux, macOS), native detection must report positive RAM
+        import platform
+
+        if platform.system() in ("Windows", "Linux", "Darwin"):
+            assert cpu_mem["total_bytes"] > 0
+            assert cpu_mem["free_bytes"] > 0
 
     # 7. Backend initialization failures
     def test_backend_initialization_failures_handled_gracefully(self):

@@ -86,6 +86,9 @@ EveryO classifies hardware backend capabilities across five explicit tiers:
 4. **Memory Leaks and Resource Cleanup**:
    - Accelerators requiring unmanaged device allocations must implement `release()` and `synchronize()`.
    - Default implementations provide explicit no-ops for CPU/GC-managed buffers, while asynchronous backends override them.
+5. **Cross-Platform Memory Detection Differences**:
+   - macOS virtual memory management does not expose `SC_AVPHYS_PAGES` via `os.sysconf`.
+   - *Mitigation*: EveryO implements platform-tailored memory detection: `sysctl hw.memsize` combined with `vm_stat` (free + inactive + speculative pages) with dynamic Mach page sizes (4KB on Intel, 16KB on Apple Silicon) on macOS, `GlobalMemoryStatusEx` on Windows, and `sysconf` with `/proc/meminfo` on Linux.
 
 ---
 
