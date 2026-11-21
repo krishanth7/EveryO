@@ -23,7 +23,21 @@ __all__ = ["Device", "device", "resolve_device", "DeviceLike", "VALID_DEVICE_TYP
 
 _LOGGER = get_logger(__name__)
 
-VALID_DEVICE_TYPES = ("cpu", "cuda")
+VALID_DEVICE_TYPES = (
+    "cpu",
+    "cuda",
+    "rocm",
+    "hip",
+    "intel",
+    "sycl",
+    "openvino",
+    "directml",
+    "metal",
+    "vulkan",
+    "opencl",
+    "qnn",
+    "onnxruntime",
+)
 
 
 @dataclass(frozen=True)
@@ -31,7 +45,7 @@ class Device:
     """An execution device.
 
     Attributes:
-        type: Either ``"cpu"`` or ``"cuda"``.
+        type: One of the values in :data:`VALID_DEVICE_TYPES`.
         index: Device ordinal.  Always ``0`` for CPU.
     """
 
@@ -55,6 +69,16 @@ class Device:
     def is_cuda(self) -> bool:
         """``True`` when this device executes on the GPU."""
         return self.type == "cuda"
+
+    @property
+    def is_cpu(self) -> bool:
+        """``True`` when this device is the CPU."""
+        return self.type == "cpu"
+
+    @property
+    def is_accelerator(self) -> bool:
+        """``True`` when this device is any non-CPU accelerator."""
+        return self.type != "cpu"
 
     def __str__(self) -> str:
         return self.type if self.type == "cpu" else f"{self.type}:{self.index}"
@@ -83,13 +107,14 @@ def _parse(spec: str) -> tuple[str, int]:
 
 
 def device(spec: DeviceLike = "cpu", *, strict: bool = False) -> Device:
-    """Create a :class:`Device`, resolving ``"auto"`` and CUDA availability.
+    """Create a :class:`Device`, resolving ``"auto"`` and backend availability.
 
     Args:
-        spec: ``"cpu"``, ``"cuda"``, ``"cuda:0"``, ``"auto"``, a :class:`Device`,
-            or ``None`` (equivalent to ``"cpu"``).
-        strict: When ``True``, requesting CUDA without a usable CUDA extension
-            raises instead of falling back to the CPU.
+        spec: ``"cpu"``, ``"cuda"``, ``"rocm"``, ``"intel"``, ``"directml"``,
+            ``"metal"``, ``"auto"``, a :class:`Device`, or ``None``
+            (equivalent to ``"cpu"``).
+        strict: When ``True``, requesting an unavailable backend raises
+            instead of falling back to the CPU.
 
     Returns:
         The resolved device.
@@ -105,31 +130,90 @@ def device(spec: DeviceLike = "cpu", *, strict: bool = False) -> Device:
     else:
         name, index = _parse(str(spec))
 
-    # Imported lazily so that importing everyo.core.device never imports the
-    # optional native extension.
-    from everyo.cuda.availability import is_available as cuda_is_available
-
-    if name == "auto":
-        return Device("cuda", 0) if cuda_is_available() else CPU
-
     if name == "gpu":  # friendly alias
         name = "cuda"
 
-    if name == "cuda" and not cuda_is_available():
+    # --- auto selection ---
+    if name == "auto":
+        return _auto_select_device()
+
+    # --- CUDA-specific backward-compatible path ---
+    if name == "cuda":
+        from everyo.cuda.availability import is_available as cuda_is_available
+
+        if not cuda_is_available():
+            if strict:
+                raise EveryOCudaError(
+                    "CUDA was requested with strict=True but the EveryO CUDA "
+                    "extension is not available. Build it with "
+                    "'./scripts/build_cuda.sh' on a machine with the NVIDIA CUDA "
+                    "Toolkit, or use device='cpu'."
+                )
+            _LOGGER.warning(
+                "CUDA is not available; falling back to the CPU device. "
+                "Run 'everyo doctor' for details."
+            )
+            return CPU
+        return Device(name, index)
+
+    # --- Other accelerator backends ---
+    if name in VALID_DEVICE_TYPES and name != "cpu":
+        if _is_backend_available(name):
+            return Device(name, index)
         if strict:
-            raise EveryOCudaError(
-                "CUDA was requested with strict=True but the EveryO CUDA "
-                "extension is not available. Build it with "
-                "'./scripts/build_cuda.sh' on a machine with the NVIDIA CUDA "
-                "Toolkit, or use device='cpu'."
+            raise EveryODeviceError(
+                f"Backend '{name}' was requested with strict=True but is not "
+                f"available. Run 'everyo doctor' for details."
             )
         _LOGGER.warning(
-            "CUDA is not available; falling back to the CPU device. "
-            "Run 'everyo doctor' for details."
+            "Backend '%s' is not available; falling back to the CPU device. "
+            "Run 'everyo doctor' for details.",
+            name,
         )
         return CPU
 
     return Device(name, index)
+
+
+def _auto_select_device() -> Device:
+    """Select the best available device automatically."""
+    # First try CUDA (backward compatible).
+    from everyo.cuda.availability import is_available as cuda_is_available
+
+    if cuda_is_available():
+        return Device("cuda", 0)
+
+    # Then try other operational accelerators through the registry.
+    try:
+        from everyo.backends.registry import get_available_backends, _PRIORITY
+
+        candidates = sorted(
+            get_available_backends().values(),
+            key=lambda b: _PRIORITY.get(b.name, 0),
+            reverse=True,
+        )
+        for backend in candidates:
+            # Only select backends that are actually operational with compute kernels
+            if backend.name != "cpu" and len(backend.get_capabilities().supported_operations) > 0:
+                devices = backend.detect_devices()
+                if devices:
+                    return Device(backend.name, devices[0].index)
+                return Device(backend.name, 0)
+    except Exception:
+        pass
+
+    return CPU
+
+
+def _is_backend_available(name: str) -> bool:
+    """Check if a named backend is available through the registry."""
+    try:
+        from everyo.backends.registry import get_backend
+
+        backend = get_backend(name)
+        return backend is not None and backend.is_available()
+    except Exception:
+        return False
 
 
 def resolve_device(spec: DeviceLike = "cpu", *, strict: bool = False) -> Device:
