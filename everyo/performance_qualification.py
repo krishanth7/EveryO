@@ -713,7 +713,9 @@ def benchmark_model_operations(
             )
         )
 
-        load_lats = _measure_latency_series(lambda: eo.load(model_file), warmup=warmup, repeats=repeats)
+        load_lats = _measure_latency_series(
+            lambda: eo.load(model_file), warmup=warmup, repeats=repeats
+        )
         med_load = calculate_percentile(load_lats, 0.50)
         metrics.append(
             BenchmarkMetric(
@@ -760,7 +762,9 @@ def benchmark_model_operations(
                 p90_ms=calculate_percentile(mem_load_lats, 0.90),
                 p95_ms=calculate_percentile(mem_load_lats, 0.95),
                 throughput_per_second=1000.0 / max(med_mem_load, 1e-6),
-                p99_ms=calculate_percentile(mem_load_lats, 0.99) if len(mem_load_lats) >= 100 else None,
+                p99_ms=calculate_percentile(mem_load_lats, 0.99)
+                if len(mem_load_lats) >= 100
+                else None,
                 memory_rss_bytes=mem_info.get("rss_bytes"),
             )
         )
@@ -1562,7 +1566,9 @@ def check_environment_compatibility(
     if curr_py and base_py:
         if strict_python_patch:
             if curr_py != base_py:
-                reasons.append(f"Python patch version mismatch: current={curr_py} vs baseline={base_py}")
+                reasons.append(
+                    f"Python patch version mismatch: current={curr_py} vs baseline={base_py}"
+                )
         else:
             curr_mm = ".".join(curr_py.split(".")[:2])
             base_mm = ".".join(base_py.split(".")[:2])
@@ -1575,12 +1581,16 @@ def check_environment_compatibility(
     if curr_np and base_np:
         if strict_numpy_patch:
             if curr_np != base_np:
-                reasons.append(f"NumPy patch version mismatch: current={curr_np} vs baseline={base_np}")
+                reasons.append(
+                    f"NumPy patch version mismatch: current={curr_np} vs baseline={base_np}"
+                )
         else:
             curr_np_major = curr_np.split(".")[0]
             base_np_major = base_np.split(".")[0]
             if curr_np_major != base_np_major:
-                reasons.append(f"NumPy major version mismatch: current={curr_np} vs baseline={base_np}")
+                reasons.append(
+                    f"NumPy major version mismatch: current={curr_np} vs baseline={base_np}"
+                )
 
     # 5. Processor / CPU model identity
     curr_proc = str(current_env.get("processor", "")).strip().lower()
@@ -1634,7 +1644,9 @@ def evaluate_performance_regression(
                 "status": "MISSING_BASELINE",
                 "reason": "Baseline record missing or empty",
                 "baseline_median_ms": None,
-                "current_median_ms": b_entry.get("median_ms") if isinstance(b_entry, dict) else None,
+                "current_median_ms": b_entry.get("median_ms")
+                if isinstance(b_entry, dict)
+                else None,
                 "delta_ms": None,
                 "delta_pct": None,
             }
@@ -1665,7 +1677,9 @@ def evaluate_performance_regression(
     base_suite = baseline_results.get("benchmark_suite_version")
     suite_mismatch: str | None = None
     if curr_suite and base_suite and curr_suite != base_suite:
-        suite_mismatch = f"Benchmark suite version mismatch: current={curr_suite} vs baseline={base_suite}"
+        suite_mismatch = (
+            f"Benchmark suite version mismatch: current={curr_suite} vs baseline={base_suite}"
+        )
 
     # Check environment metadata compatibility
     current_env = current_results.get("environment")
@@ -1720,7 +1734,9 @@ def evaluate_performance_regression(
             "environment_differences": env_incompatible_reasons,
             "warnings": [],
             "failures": [],
-            "incomparables": [f"{c['benchmark_id']}: INCOMPARABLE ({c['reason']})" for c in incomp_comps],
+            "incomparables": [
+                f"{c['benchmark_id']}: INCOMPARABLE ({c['reason']})" for c in incomp_comps
+            ],
             "comparisons": incomp_comps,
             "notice": "A compatible baseline matching the current execution environment is required for performance regression evaluation.",
         }

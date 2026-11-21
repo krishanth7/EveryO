@@ -170,7 +170,9 @@ class TestPerformanceRegressionGates:
         res = evaluate_performance_regression(current, base)
         assert res["status"] == "INCOMPARABLE"
         assert res["passed"] is None
-        assert any("NumPy major version mismatch" in diff for diff in res["environment_differences"])
+        assert any(
+            "NumPy major version mismatch" in diff for diff in res["environment_differences"]
+        )
 
     def test_different_benchmark_suite_versions_become_incomparable(self):
         base = {

@@ -80,11 +80,12 @@ def _open_archive(path: Path | str | io.BytesIO | bytes) -> zipfile.ZipFile:
         ) from exc
 
 
-def _read_manifest_from_archive(archive: zipfile.ZipFile, archive_path: Path | str) -> dict[str, Any]:
+def _read_manifest_from_archive(
+    archive: zipfile.ZipFile, archive_path: Path | str
+) -> dict[str, Any]:
     if MANIFEST_NAME not in archive.namelist():
         raise EveryOSerializationError(
-            f"{archive_path} does not contain {MANIFEST_NAME}; it was not "
-            "written by everyo.save()."
+            f"{archive_path} does not contain {MANIFEST_NAME}; it was not written by everyo.save()."
         )
     try:
         manifest = json.loads(
