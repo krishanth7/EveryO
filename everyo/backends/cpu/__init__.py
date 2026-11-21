@@ -47,9 +47,10 @@ class CpuBackend(HardwareBackend):
         return BackendStatus.AVAILABLE
 
     def detect_devices(self) -> list[DeviceInfo]:
-        from everyo.backends.detection import detect_cpu_info
+        from everyo.backends.detection import detect_cpu_info, detect_system_memory
 
         info = detect_cpu_info()
+        mem = detect_system_memory()
         return [
             DeviceInfo(
                 backend="cpu",
@@ -57,6 +58,9 @@ class CpuBackend(HardwareBackend):
                 index=0,
                 name=info.get("model_name", info.get("processor", "CPU")),
                 vendor="generic",
+                total_memory_bytes=mem["total_bytes"],
+                free_memory_bytes=mem["free_bytes"],
+                supported_dtypes=("float32", "float64", "int32", "int64", "bool"),
             )
         ]
 
@@ -64,6 +68,11 @@ class CpuBackend(HardwareBackend):
         from everyo.backends.detection import detect_cpu_info
 
         return detect_cpu_info()
+
+    def get_device_memory(self, index: int = 0) -> dict[str, int]:
+        from everyo.backends.detection import detect_system_memory
+
+        return detect_system_memory()
 
     def get_capabilities(self) -> BackendCapabilities:
         return BackendCapabilities(

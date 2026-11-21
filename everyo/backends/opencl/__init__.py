@@ -38,20 +38,23 @@ class OpenClBackend(HardwareBackend):
         return "khronos"
 
     def is_available(self) -> bool:
+        return False
+
+    def unavailable_reason(self) -> str | None:
         try:
             import pyopencl  # noqa: F401
 
-            return True
+            return "OpenCL runtime detected via PyOpenCL, but OpenCL compute operations are not yet implemented in EveryO."
         except ImportError:
-            return False
-
-    def unavailable_reason(self) -> str | None:
-        if self.is_available():
-            return None
-        return "PyOpenCL is not installed.  Install with: pip install pyopencl"
+            return "PyOpenCL is not installed.  Install with: pip install pyopencl"
 
     def status(self) -> BackendStatus:
-        return BackendStatus.AVAILABLE if self.is_available() else BackendStatus.NOT_INSTALLED
+        try:
+            import pyopencl  # noqa: F401
+
+            return BackendStatus.NOT_IMPLEMENTED
+        except ImportError:
+            return BackendStatus.NOT_INSTALLED
 
     def detect_devices(self) -> list[DeviceInfo]:
         if not self.is_available():

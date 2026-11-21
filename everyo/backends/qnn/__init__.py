@@ -38,26 +38,25 @@ class QnnBackend(HardwareBackend):
         return "qualcomm"
 
     def is_available(self) -> bool:
-        return self.status() == BackendStatus.AVAILABLE
+        return False
 
     def unavailable_reason(self) -> str | None:
-        if self.is_available():
-            return None
+        status = self.status()
+        if status == BackendStatus.NOT_IMPLEMENTED:
+            return "Qualcomm QNN SDK detected, but QNN compute kernels are not yet implemented in EveryO."
         return (
             "Qualcomm QNN SDK not detected.  Install from "
             "https://www.qualcomm.com/developer/software/qualcomm-ai-engine-direct-sdk"
         )
 
     def status(self) -> BackendStatus:
-        # Check for QNN SDK environment.
         if os.environ.get("QNN_SDK_ROOT"):
-            return BackendStatus.AVAILABLE
-        # Check for ONNX Runtime QNN EP.
+            return BackendStatus.NOT_IMPLEMENTED
         try:
             import onnxruntime as ort
 
             if "QNNExecutionProvider" in ort.get_available_providers():
-                return BackendStatus.AVAILABLE
+                return BackendStatus.NOT_IMPLEMENTED
         except ImportError:
             pass
         return BackendStatus.NOT_INSTALLED

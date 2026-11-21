@@ -83,8 +83,8 @@ class RocmBackend(HardwareBackend):
             )
             return BackendStatus.NO_DEVICES
 
-        _UNAVAILABLE_REASON = None
-        return BackendStatus.AVAILABLE
+        _UNAVAILABLE_REASON = "AMD ROCm hardware detected, but ROCm compute kernels are not yet implemented in EveryO."
+        return BackendStatus.NOT_IMPLEMENTED
 
     def detect_devices(self) -> list[DeviceInfo]:
         if platform.system() != "Linux":

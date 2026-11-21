@@ -22,6 +22,10 @@ from everyo.backends.base import (
     DeviceType,
     HardwareBackend,
 )
+from everyo.backends.manager import (
+    BackendManager,
+    get_manager,
+)
 from everyo.backends.operator_backend import (
     CudaOperatorBackend,
     DispatchResult,
@@ -56,9 +60,11 @@ __all__ = [
     # --- new multi-backend public API ---
     "HardwareBackend",
     "BackendCapabilities",
+    "BackendManager",
     "BackendStatus",
     "DeviceInfo",
     "DeviceType",
+    "get_manager",
     "register_backend",
     "get_backend",
     "get_all_backends",

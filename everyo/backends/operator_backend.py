@@ -128,16 +128,24 @@ def backend_for(device: Device | str) -> OperatorBackend:
     """Resolve the backend for a device without importing the CUDA extension.
 
     For CUDA devices the existing :class:`CudaOperatorBackend` is returned.
-    For all other accelerator devices the NumPy backend is used as a
-    temporary fallback until those backends implement the OperatorBackend
-    protocol with actual compute kernels.
+    For registered hardware backends that implement OperatorBackend, they are
+    returned directly so dispatch() can query their operation capabilities.
+    Otherwise, the NumPy reference backend is returned.
     """
     name = device.type if isinstance(device, Device) else str(device).split(":", 1)[0]
     if name == "cuda":
         return _CUDA
-    # All other device types currently fall back to CPU (NumPy).
-    # As vendor backends gain OperatorBackend implementations, this
-    # function will route to them.
+    if name == "cpu":
+        return _NUMPY
+
+    try:
+        from everyo.backends.registry import get_backend
+
+        hw = get_backend(name)
+        if hw is not None and isinstance(hw, OperatorBackend):
+            return hw
+    except Exception:
+        pass
     return _NUMPY
 
 

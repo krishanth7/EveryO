@@ -38,37 +38,17 @@ class MetalBackend(HardwareBackend):
         return "apple"
 
     def is_available(self) -> bool:
-        return self.status() == BackendStatus.AVAILABLE
+        return False
 
     def unavailable_reason(self) -> str | None:
-        status = self.status()
-        if status == BackendStatus.AVAILABLE:
-            return None
         if platform.system() != "Darwin":
             return "Metal is only available on macOS."
-        return "Metal framework not detected on this macOS installation."
+        return "Apple Metal hardware detected, but Metal compute kernels are not yet implemented in EveryO."
 
     def status(self) -> BackendStatus:
         if platform.system() != "Darwin":
             return BackendStatus.UNAVAILABLE
-        # On macOS, Metal is part of the OS — check if we can access it.
-        try:
-            import subprocess
-
-            result = subprocess.run(
-                ["system_profiler", "SPDisplaysDataType"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if "Metal" in result.stdout:
-                return BackendStatus.AVAILABLE
-        except Exception:
-            pass
-        # Fall back: Apple Silicon always has Metal.
-        if platform.machine() == "arm64":
-            return BackendStatus.AVAILABLE
-        return BackendStatus.UNAVAILABLE
+        return BackendStatus.NOT_IMPLEMENTED
 
     def detect_devices(self) -> list[DeviceInfo]:
         if platform.system() != "Darwin":

@@ -47,6 +47,7 @@ class BackendManager:
 
     def __init__(self) -> None:
         self._fallback_log: list[dict[str, Any]] = []
+        self._last_selection_report: dict[str, Any] = {}
 
     def select_backend(
         self,
@@ -69,15 +70,25 @@ class BackendManager:
             RuntimeError: When no backend can serve the request.
         """
         self._fallback_log.clear()
+        self._last_selection_report = {
+            "requested": requested,
+            "operation": operation,
+            "strict": strict,
+            "selected": None,
+            "fallback_occurred": False,
+            "reasons": [],
+        }
 
         if requested != "auto":
             backend = get_backend(requested)
             if backend is not None and backend.is_available():
                 if operation is None or backend.supports_operation(operation):
+                    self._last_selection_report["selected"] = backend.name
                     return backend
                 # Backend is available but does not support the operation.
                 reason = f"Backend '{requested}' does not support operation '{operation}'."
                 self._fallback_log.append({"requested": requested, "reason": reason})
+                self._last_selection_report["reasons"].append(reason)
                 if strict:
                     raise RuntimeError(reason)
             else:
@@ -87,9 +98,11 @@ class BackendManager:
                     + "."
                 )
                 self._fallback_log.append({"requested": requested, "reason": reason})
+                self._last_selection_report["reasons"].append(reason)
                 if strict:
                     raise RuntimeError(reason)
             _LOGGER.info("Backend '%s' unavailable, trying fallback.", requested)
+            self._last_selection_report["fallback_occurred"] = True
 
         # Auto-selection: iterate available backends in priority order.
         available = get_available_backends()
@@ -103,21 +116,31 @@ class BackendManager:
         )
 
         for backend in candidates:
-            if operation and not backend.supports_operation(operation):
-                self._fallback_log.append(
-                    {
-                        "skipped": backend.name,
-                        "reason": f"Does not support operation '{operation}'.",
-                    }
+            # An accelerator must be genuinely operational to be auto-selected
+            if not backend.is_operational():
+                reason = (
+                    f"Backend '{backend.name}' is not operational (no compute kernels implemented)."
                 )
+                self._fallback_log.append({"skipped": backend.name, "reason": reason})
+                self._last_selection_report["reasons"].append(reason)
+                continue
+            if operation and not backend.supports_operation(operation):
+                reason = f"Backend '{backend.name}' does not support operation '{operation}'."
+                self._fallback_log.append({"skipped": backend.name, "reason": reason})
+                self._last_selection_report["reasons"].append(reason)
                 continue
             _LOGGER.debug("Selected backend '%s'.", backend.name)
+            self._last_selection_report["selected"] = backend.name
             return backend
 
         # Last resort: CPU should always be in the registry.
         cpu = get_backend("cpu")
         if cpu is not None and cpu.is_available():
-            self._fallback_log.append({"fallback": "cpu", "reason": "No accelerator available."})
+            reason = "No operational accelerator available; selected CPU reference."
+            self._fallback_log.append({"fallback": "cpu", "reason": reason})
+            self._last_selection_report["fallback_occurred"] = requested != "cpu"
+            self._last_selection_report["selected"] = "cpu"
+            self._last_selection_report["reasons"].append(reason)
             return cpu
 
         raise RuntimeError("No backend is available.  Ensure at least NumPy is installed.")
@@ -126,6 +149,10 @@ class BackendManager:
     def fallback_log(self) -> list[dict[str, Any]]:
         """Return the fallback decisions from the last :meth:`select_backend` call."""
         return list(self._fallback_log)
+
+    def get_selection_report(self) -> dict[str, Any]:
+        """Return a structured diagnostic report of the last backend selection decision."""
+        return dict(self._last_selection_report)
 
 
 _MANAGER: BackendManager | None = None

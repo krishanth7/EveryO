@@ -40,24 +40,19 @@ class IntelBackend(HardwareBackend):
         return "intel"
 
     def is_available(self) -> bool:
-        return self.status() == BackendStatus.AVAILABLE
+        return False
 
     def unavailable_reason(self) -> str | None:
-        status = self.status()
-        if status == BackendStatus.AVAILABLE:
-            return None
+        if shutil.which("sycl-ls") or os.environ.get("ONEAPI_ROOT") or os.environ.get("CMPLR_ROOT"):
+            return "Intel oneAPI / SYCL runtime detected, but compute kernels are not yet implemented in EveryO."
         return (
             "Intel oneAPI runtime not detected.  Install from "
             "https://www.intel.com/content/www/us/en/developer/tools/oneapi/toolkits.html"
         )
 
     def status(self) -> BackendStatus:
-        # Check for SYCL runtime.
-        if shutil.which("sycl-ls"):
-            return BackendStatus.AVAILABLE
-        # Check for oneAPI environment.
-        if os.environ.get("ONEAPI_ROOT") or os.environ.get("CMPLR_ROOT"):
-            return BackendStatus.AVAILABLE
+        if shutil.which("sycl-ls") or os.environ.get("ONEAPI_ROOT") or os.environ.get("CMPLR_ROOT"):
+            return BackendStatus.NOT_IMPLEMENTED
         return BackendStatus.RUNTIME_MISSING
 
     def detect_devices(self) -> list[DeviceInfo]:

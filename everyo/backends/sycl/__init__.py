@@ -38,17 +38,23 @@ class SyclBackend(HardwareBackend):
         return "khronos"
 
     def is_available(self) -> bool:
-        return shutil.which("sycl-ls") is not None
+        return False
 
     def unavailable_reason(self) -> str | None:
-        if self.is_available():
-            return None
+        if shutil.which("sycl-ls"):
+            return (
+                "SYCL runtime detected, but SYCL compute kernels are not yet implemented in EveryO."
+            )
         return (
             "SYCL runtime not detected.  Install a SYCL implementation such as Intel oneAPI DPC++."
         )
 
     def status(self) -> BackendStatus:
-        return BackendStatus.AVAILABLE if self.is_available() else BackendStatus.RUNTIME_MISSING
+        return (
+            BackendStatus.NOT_IMPLEMENTED
+            if shutil.which("sycl-ls") is not None
+            else BackendStatus.RUNTIME_MISSING
+        )
 
     def detect_devices(self) -> list[DeviceInfo]:
         # Shares detection with the Intel backend.

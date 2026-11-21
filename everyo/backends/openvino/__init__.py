@@ -37,20 +37,24 @@ class OpenVinoBackend(HardwareBackend):
         return "intel"
 
     def is_available(self) -> bool:
+        # OpenVINO can be probed if installed, but direct tensor compute operations are not yet implemented.
+        return False
+
+    def unavailable_reason(self) -> str | None:
         try:
             import openvino  # noqa: F401
 
-            return True
+            return "OpenVINO runtime detected, but direct tensor compute operations are not yet implemented in EveryO."
         except ImportError:
-            return False
-
-    def unavailable_reason(self) -> str | None:
-        if self.is_available():
-            return None
-        return "OpenVINO is not installed.  Install with: pip install openvino"
+            return "OpenVINO is not installed.  Install with: pip install openvino"
 
     def status(self) -> BackendStatus:
-        return BackendStatus.AVAILABLE if self.is_available() else BackendStatus.NOT_INSTALLED
+        try:
+            import openvino  # noqa: F401
+
+            return BackendStatus.NOT_IMPLEMENTED
+        except ImportError:
+            return BackendStatus.NOT_INSTALLED
 
     def detect_devices(self) -> list[DeviceInfo]:
         if not self.is_available():

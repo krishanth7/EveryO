@@ -39,12 +39,13 @@ class HipBackend(HardwareBackend):
         return "amd"
 
     def is_available(self) -> bool:
-        return self.status() == BackendStatus.AVAILABLE
+        return False
 
     def unavailable_reason(self) -> str | None:
-        status = self.status()
-        if status == BackendStatus.AVAILABLE:
-            return None
+        if platform.system() != "Linux":
+            return f"HIP is not supported on {platform.system()}. HIP requires Linux."
+        if shutil.which("hipconfig"):
+            return "AMD HIP runtime detected, but HIP compute kernels are not yet implemented in EveryO."
         return "HIP runtime not detected.  Install ROCm/HIP from https://rocm.docs.amd.com/"
 
     def status(self) -> BackendStatus:
@@ -52,7 +53,7 @@ class HipBackend(HardwareBackend):
             return BackendStatus.UNAVAILABLE
         if not shutil.which("hipconfig"):
             return BackendStatus.RUNTIME_MISSING
-        return BackendStatus.AVAILABLE
+        return BackendStatus.NOT_IMPLEMENTED
 
     def detect_devices(self) -> list[DeviceInfo]:
         # HIP shares device detection with ROCm.

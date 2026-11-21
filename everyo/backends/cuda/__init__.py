@@ -88,6 +88,21 @@ class CudaHardwareBackend(HardwareBackend):
             return dict(devices[index])
         return {"error": f"Device index {index} out of range."}
 
+    def get_device_memory(self, index: int = 0) -> dict[str, int]:
+        props = self.get_device_properties(index)
+        total = int(props.get("total_memory", 0))
+        return {"total_bytes": total, "free_bytes": 0, "used_bytes": 0}
+
+    def supports(self, operation: str, *arrays: Any) -> bool:
+        from everyo.cuda import interface
+
+        return interface.supports(operation, *arrays)
+
+    def unsupported_reason(self, operation: str, *arrays: Any) -> str:
+        from everyo.cuda import interface
+
+        return interface.unsupported_reason(operation, *arrays)
+
     def get_capabilities(self) -> BackendCapabilities:
         from everyo.cuda.interface import KERNEL_NAMES
 

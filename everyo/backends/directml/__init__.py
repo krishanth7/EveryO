@@ -59,8 +59,8 @@ class DirectMlBackend(HardwareBackend):
 
             providers = ort.get_available_providers()
             if "DmlExecutionProvider" in providers:
-                _UNAVAILABLE_REASON = None
-                return BackendStatus.AVAILABLE
+                _UNAVAILABLE_REASON = "DirectML runtime detected via ONNX Runtime, but DirectML compute kernels are not yet implemented in EveryO."
+                return BackendStatus.NOT_IMPLEMENTED
             _UNAVAILABLE_REASON = (
                 "ONNX Runtime is installed but DmlExecutionProvider is not available. "
                 "Install onnxruntime-directml: pip install onnxruntime-directml"
@@ -72,8 +72,8 @@ class DirectMlBackend(HardwareBackend):
         try:
             import directml  # noqa: F401
 
-            _UNAVAILABLE_REASON = None
-            return BackendStatus.AVAILABLE
+            _UNAVAILABLE_REASON = "DirectML runtime detected, but DirectML compute kernels are not yet implemented in EveryO."
+            return BackendStatus.NOT_IMPLEMENTED
         except ImportError:
             pass
 
@@ -84,7 +84,7 @@ class DirectMlBackend(HardwareBackend):
         return BackendStatus.NOT_INSTALLED
 
     def detect_devices(self) -> list[DeviceInfo]:
-        if not self.is_available():
+        if platform.system() != "Windows":
             return []
         devices: list[DeviceInfo] = []
         try:

@@ -38,20 +38,20 @@ class OnnxRuntimeBackend(HardwareBackend):
         return "microsoft"
 
     def is_available(self) -> bool:
-        try:
-            import onnxruntime  # noqa: F401
-
-            return True
-        except ImportError:
-            return False
+        return False
 
     def unavailable_reason(self) -> str | None:
-        if self.is_available():
-            return None
+        if self.get_available_providers():
+            return "ONNX Runtime providers detected, but direct tensor operations are not yet implemented in EveryO."
         return "ONNX Runtime is not installed.  Install with: pip install onnxruntime"
 
     def status(self) -> BackendStatus:
-        return BackendStatus.AVAILABLE if self.is_available() else BackendStatus.NOT_INSTALLED
+        try:
+            import onnxruntime  # noqa: F401
+
+            return BackendStatus.NOT_IMPLEMENTED
+        except ImportError:
+            return BackendStatus.NOT_INSTALLED
 
     def get_available_providers(self) -> list[str]:
         """Return the list of available ONNX Runtime execution providers."""

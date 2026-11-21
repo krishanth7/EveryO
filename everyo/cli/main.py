@@ -176,6 +176,87 @@ def _command_doctor(args: argparse.Namespace) -> int:
         print(f"\n{failures} required check(s) failed. EveryO may not work correctly.")
         return 1
     print("\nAll required checks passed. Optional components are reported above.")
+
+    # Multi-vendor hardware diagnostics
+    print("\nEveryO Hardware Diagnostic")
+    print("-" * 50)
+    from everyo.backends.detection import detect_cpu_info, detect_system_memory
+    from everyo.backends.registry import get_all_backends
+
+    cpu_info = detect_cpu_info()
+    mem_info = detect_system_memory()
+    mem_gb = mem_info["total_bytes"] / (1024**3) if mem_info["total_bytes"] else 0
+    print("CPU")
+    print(f"  PASS  CPU detected: {cpu_info.get('model_name', cpu_info.get('processor', 'CPU'))}")
+    if mem_gb > 0:
+        print(
+            f"        Physical memory: {mem_gb:.1f} GB ({mem_info['free_bytes'] / (1024**3):.1f} GB free)"
+        )
+
+    all_hw = get_all_backends()
+
+    cuda_hw = all_hw.get("cuda")
+    print("\nNVIDIA")
+    if cuda_hw and cuda_hw.is_available():
+        devs = cuda_hw.detect_devices()
+        print(f"  PASS  CUDA operational ({len(devs)} device(s))")
+    else:
+        print(f"  INFO  {cuda_hw.unavailable_reason() if cuda_hw else 'No NVIDIA GPU detected'}")
+
+    rocm_hw = all_hw.get("rocm")
+    print("\nAMD")
+    if rocm_hw and rocm_hw.is_available():
+        devs = rocm_hw.detect_devices()
+        print(f"  PASS  AMD ROCm operational ({len(devs)} device(s))")
+    else:
+        print(
+            f"  INFO  {rocm_hw.unavailable_reason() if rocm_hw else 'No compatible AMD GPU detected'}"
+        )
+
+    intel_hw = all_hw.get("intel")
+    print("\nINTEL")
+    if intel_hw and intel_hw.is_available():
+        devs = intel_hw.detect_devices()
+        print(f"  PASS  Intel oneAPI operational ({len(devs)} device(s))")
+    else:
+        print(
+            f"  INFO  {intel_hw.unavailable_reason() if intel_hw else 'No Intel accelerator operational'}"
+        )
+
+    metal_hw = all_hw.get("metal")
+    print("\nAPPLE")
+    if metal_hw and metal_hw.is_available():
+        print("  PASS  Apple Metal operational")
+    else:
+        print(f"  INFO  {metal_hw.unavailable_reason() if metal_hw else 'Not applicable'}")
+
+    dml_hw = all_hw.get("directml")
+    print("\nDIRECTML")
+    if dml_hw and dml_hw.is_available():
+        print("  PASS  DirectML operational")
+    else:
+        print(f"  INFO  {dml_hw.unavailable_reason() if dml_hw else 'DirectML unavailable'}")
+
+    onnx_hw = all_hw.get("onnxruntime")
+    print("\nONNX")
+    if onnx_hw and onnx_hw.is_available():
+        print("  PASS  ONNX Runtime operational")
+    else:
+        print(f"  INFO  {onnx_hw.unavailable_reason() if onnx_hw else 'ONNX Runtime unavailable'}")
+
+    vulkan_hw = all_hw.get("vulkan")
+    print("\nVULKAN")
+    if vulkan_hw and vulkan_hw.is_available():
+        print("  PASS  Vulkan operational")
+    else:
+        print(f"  INFO  {vulkan_hw.unavailable_reason() if vulkan_hw else 'Vulkan unavailable'}")
+
+    from everyo.core.device import device
+
+    best = device("auto")
+    print(f"\nSELECTED DEVICE\n  {best}")
+    print("\nFALLBACK\n  CPU available")
+    print("-" * 50)
     return 0
 
 

@@ -13,10 +13,52 @@ from typing import Any
 
 __all__ = [
     "detect_cpu_info",
+    "detect_system_memory",
     "detect_all_hardware",
 ]
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def detect_system_memory() -> dict[str, int]:
+    """Return physical memory statistics (total, free, used) in bytes."""
+    total = 0
+    free = 0
+    try:
+        if platform.system() == "Windows":
+            import ctypes
+
+            class _MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            stat = _MEMORYSTATUSEX()
+            stat.dwLength = ctypes.sizeof(stat)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+                total = int(stat.ullTotalPhys)
+                free = int(stat.ullAvailPhys)
+        elif (
+            hasattr(os, "sysconf")
+            and "SC_PAGE_SIZE" in os.sysconf_names
+            and "SC_PHYS_PAGES" in os.sysconf_names
+        ):
+            page_size = os.sysconf("SC_PAGE_SIZE")
+            total = int(page_size * os.sysconf("SC_PHYS_PAGES"))
+            if "SC_AVPHYS_PAGES" in os.sysconf_names:
+                free = int(page_size * os.sysconf("SC_AVPHYS_PAGES"))
+    except Exception:
+        pass
+    used = max(0, total - free)
+    return {"total_bytes": total, "free_bytes": free, "used_bytes": used}
 
 
 def detect_cpu_info() -> dict[str, Any]:
@@ -50,6 +92,10 @@ def detect_cpu_info() -> dict[str, Any]:
         info.update(_detect_cpu_windows())
     elif platform.system() == "Darwin":
         info.update(_detect_cpu_macos())
+
+    mem = detect_system_memory()
+    info["total_memory_bytes"] = mem["total_bytes"]
+    info["free_memory_bytes"] = mem["free_bytes"]
 
     return info
 

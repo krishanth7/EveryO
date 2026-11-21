@@ -174,6 +174,55 @@ class HardwareBackend(ABC):
         """Convenience: does this backend support ``dtype``?"""
         return self.get_capabilities().supports_dtype(dtype)
 
+    def is_operational(self) -> bool:
+        """Return True when this backend can execute compute operations right now."""
+        return self.is_available() and len(self.get_capabilities().supported_operations) > 0
+
+    def get_device_memory(self, index: int = 0) -> dict[str, int]:
+        """Return memory information for the device at ``index``.
+
+        Returns a dictionary with keys:
+            - ``'total_bytes'``: Total memory in bytes (0 if unsupported).
+            - ``'free_bytes'``: Free memory in bytes (0 if unsupported).
+            - ``'used_bytes'``: Used memory in bytes (0 if unsupported).
+        """
+        return {"total_bytes": 0, "free_bytes": 0, "used_bytes": 0}
+
+    def supports(self, operation: str, *arrays: Any) -> bool:
+        """Check whether this backend can execute ``operation`` on the given arrays."""
+        if not self.is_available() or not self.supports_operation(operation):
+            return False
+        caps = self.get_capabilities()
+        for array in arrays:
+            dtype_str = str(getattr(array, "dtype", ""))
+            if dtype_str and not caps.supports_dtype(dtype_str):
+                return False
+        return True
+
+    def unsupported_reason(self, operation: str, *arrays: Any) -> str:
+        """Return an explanation for why ``operation`` cannot be executed on this backend."""
+        if not self.is_available():
+            reason = self.unavailable_reason()
+            return f"Backend '{self.name}' is unavailable" + (f": {reason}" if reason else ".")
+        if not self.supports_operation(operation):
+            return f"Backend '{self.name}' does not implement operation '{operation}'."
+        caps = self.get_capabilities()
+        for array in arrays:
+            dtype_str = str(getattr(array, "dtype", ""))
+            if dtype_str and not caps.supports_dtype(dtype_str):
+                return (
+                    f"Backend '{self.name}' does not support dtype '{dtype_str}' for '{operation}'."
+                )
+        return f"Backend '{self.name}' does not support the inputs provided for '{operation}'."
+
+    def to_host(self, value: Any) -> Any:
+        """Bridge method satisfying the OperatorBackend protocol."""
+        return self.transfer_to_host(value)
+
+    def from_host(self, value: Any) -> Any:
+        """Bridge method satisfying the OperatorBackend protocol."""
+        return self.transfer_to_device(value)
+
     # ------------------------------------------------------------------
     # Execution (default stubs — concrete backends override as needed)
     # ------------------------------------------------------------------

@@ -22,6 +22,10 @@ __all__ = [
     "available_matmul_backends",
     "run_matmul_benchmark",
     "run_relu_benchmark",
+    "measure_startup_overhead",
+    "run_tensor_ops_benchmark",
+    "run_forward_backward_benchmark",
+    "run_hardware_benchmark_suite",
 ]
 
 _LOGGER = get_logger(__name__)
@@ -30,6 +34,7 @@ _LOGGER = get_logger(__name__)
 def environment() -> dict[str, Any]:
     """Describe the machine the benchmark ran on."""
     from everyo.backends import tensorflow_backend
+    from everyo.backends.detection import detect_cpu_info, detect_system_memory
     from everyo.cuda.availability import is_available as cuda_available
     from everyo.version import __version__
 
@@ -38,6 +43,8 @@ def environment() -> dict[str, Any]:
         "python": platform.python_version(),
         "platform": f"{platform.system()} {platform.release()} ({platform.machine()})",
         "processor": platform.processor() or "unknown",
+        "cpu_info": detect_cpu_info(),
+        "system_memory": detect_system_memory(),
         "numpy": np.__version__,
         "tensorflow": (
             tensorflow_backend.get_tensorflow().__version__
@@ -232,3 +239,119 @@ def run_relu_benchmark(
                 }
             )
     return results
+
+
+def measure_startup_overhead() -> dict[str, float]:
+    """Measure device detection and backend resolution overhead in seconds."""
+    from everyo.backends.registry import detect_all, get_available_devices
+
+    def probe() -> None:
+        detect_all()
+        get_available_devices()
+
+    timing = time_callable(probe, repeats=5, warmup=1)
+    return {
+        "detection_overhead_seconds": timing["seconds"],
+        "detection_overhead_ms": timing["seconds"] * 1000.0,
+        "best_ms": timing["best"] * 1000.0,
+    }
+
+
+def run_tensor_ops_benchmark(
+    *,
+    sizes: Sequence[int] = (10_000, 100_000, 1_000_000),
+    repeats: int = 3,
+    warmup: int = 1,
+    seed: int = 0,
+) -> list[dict[str, Any]]:
+    """Benchmark basic tensor elementwise addition across available devices."""
+    import everyo as eo
+
+    rng = np.random.default_rng(seed)
+    devices = ["cpu"]
+    if eo.cuda.is_available():
+        devices.append("cuda")
+
+    results: list[dict[str, Any]] = []
+    for size in sizes:
+        a_np = rng.normal(size=int(size)).astype(np.float32)
+        b_np = rng.normal(size=int(size)).astype(np.float32)
+        for dev_name in devices:
+            a = eo.tensor(a_np, device=dev_name)
+            b = eo.tensor(b_np, device=dev_name)
+
+            def op(x=a, y=b) -> Any:
+                return x + y
+
+            timing = time_callable(op, repeats=repeats, warmup=warmup)
+            results.append(
+                {
+                    "benchmark": "tensor_add",
+                    "device": dev_name,
+                    "size": int(size),
+                    "elements_per_second": float(size) / timing["seconds"],
+                    **timing,
+                }
+            )
+    return results
+
+
+def run_forward_backward_benchmark(
+    *,
+    batch_size: int = 64,
+    in_features: int = 128,
+    out_features: int = 64,
+    repeats: int = 3,
+    warmup: int = 1,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Benchmark a forward pass and backward pass on a Linear layer."""
+    import everyo as eo
+
+    rng = np.random.default_rng(seed)
+    x_np = rng.normal(size=(batch_size, in_features)).astype(np.float32)
+
+    layer = eo.Linear(in_features, out_features, seed=seed)
+    x = eo.tensor(x_np, requires_grad=True)
+
+    def forward_pass() -> Any:
+        return layer(x)
+
+    def train_step() -> Any:
+        layer.zero_grad()
+        out = layer(x)
+        loss = eo.sum(out)
+        loss.backward()
+        return loss
+
+    fwd_timing = time_callable(forward_pass, repeats=repeats, warmup=warmup)
+    train_timing = time_callable(train_step, repeats=repeats, warmup=warmup)
+
+    return {
+        "batch_size": batch_size,
+        "in_features": in_features,
+        "out_features": out_features,
+        "forward_seconds": fwd_timing["seconds"],
+        "forward_best": fwd_timing["best"],
+        "train_step_seconds": train_timing["seconds"],
+        "train_step_best": train_timing["best"],
+    }
+
+
+def run_hardware_benchmark_suite(
+    *,
+    matmul_sizes: Sequence[int] = (128, 256),
+    repeats: int = 3,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Execute the full reproducible hardware benchmark suite."""
+    return {
+        "environment": environment(),
+        "startup_overhead": measure_startup_overhead(),
+        "matmul": run_matmul_benchmark(sizes=matmul_sizes, repeats=repeats, seed=seed),
+        "relu": run_relu_benchmark(sizes=[100_000, 500_000], repeats=repeats, seed=seed),
+        "tensor_ops": run_tensor_ops_benchmark(
+            sizes=[100_000, 500_000], repeats=repeats, seed=seed
+        ),
+        "forward_backward": run_forward_backward_benchmark(repeats=repeats, seed=seed),
+    }

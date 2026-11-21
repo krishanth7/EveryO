@@ -39,18 +39,24 @@ class VulkanBackend(HardwareBackend):
         return "khronos"
 
     def is_available(self) -> bool:
-        return shutil.which("vulkaninfo") is not None
+        # Hardware may be detected via vulkaninfo, but compute execution kernels are not yet implemented.
+        return False
 
     def unavailable_reason(self) -> str | None:
-        if self.is_available():
-            return None
+        if shutil.which("vulkaninfo") is not None:
+            return (
+                "Vulkan runtime/device detected, but Vulkan compute kernels are not yet "
+                "implemented in EveryO."
+            )
         return "Vulkan runtime not detected.  Install GPU drivers with Vulkan support."
 
     def status(self) -> BackendStatus:
-        return BackendStatus.AVAILABLE if self.is_available() else BackendStatus.RUNTIME_MISSING
+        if shutil.which("vulkaninfo") is not None:
+            return BackendStatus.NOT_IMPLEMENTED
+        return BackendStatus.RUNTIME_MISSING
 
     def detect_devices(self) -> list[DeviceInfo]:
-        if not self.is_available():
+        if shutil.which("vulkaninfo") is None:
             return []
         devices: list[DeviceInfo] = []
         try:
