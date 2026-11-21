@@ -22,6 +22,9 @@ status = eo.backends.get_backend_status()["rocm"]
 print(f"ROCm Status: {status['status']}")
 ```
 
-## Current Status
+## Qualification Tier & Implementation Status
 
-Device detection is qualified. Compute kernels are tracked for Phase 3 integration via HIP C++ bindings.
+- **Qualification Tier**: **Device detection only** (Linux).
+- **Compute Kernels**: **Not implemented**. HIP compute kernels are tracked for Phase 3 integration.
+- **Unsupported Environments**: ROCm on Windows is **Unsupported** by AMD's official ROCm stack.
+- **Execution & Fallback Behavior**: Detection-only support does NOT execute compute kernels. Requesting `rocm` or `hip` safely falls back to CPU when `strict=False`, or raises `EveryODeviceError` when `strict=True`. `eo.device("auto")` will never select ROCm or HIP until operational compute kernels are integrated.

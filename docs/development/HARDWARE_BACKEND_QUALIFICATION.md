@@ -47,21 +47,28 @@ EveryO strictly adheres to empirical truth in hardware acceleration:
 
 ---
 
-## 3. Existing Hardware Implementations vs. Placeholders
+## 3. Existing Hardware Implementations vs. Qualification Tiers
 
-| Backend | Status | Driver / Runtime | Compute Implementation | Qualification Status |
+EveryO classifies hardware backend capabilities across five explicit tiers:
+1. **Implemented and tested**: Full compute kernel execution verified on real physical hardware with mathematical equivalence to reference implementations.
+2. **Implemented but not tested on real hardware**: Compute kernels or transfer abstraction implemented and tested via architectural verification or simulated environments, but physical accelerator hardware was not attached during testing.
+3. **Device detection only**: Driver, runtime, device querying, and metadata discovery are implemented and tested, but compute execution kernels are not yet integrated.
+4. **Not implemented**: Backends or kernels that are planned but have no implementation in EveryO.
+5. **Unsupported**: Combinations of OS, architectures, or datatypes that are explicitly rejected by vendor SDK constraints.
+
+| Backend | Driver / Runtime | Compute Implementation | Qualification Tier | Fallback & Execution Policy |
 |---|---|---|---|---|
-| **CPU** | **Production** | Python, NumPy, OS CPU APIs | All standard operations (Math, LinAlg, Reductions, NN, Autograd) | **Qualified Baseline** |
-| **NVIDIA CUDA** | **Production** | CUDA Toolkit 11.8+, Driver 525+, pybind11 | C++/CUDA kernels for `add`, `multiply`, `matmul`, `relu`, `sum_all`, `ResidentTensor` | **Qualified (Optional)** |
-| **AMD ROCm / HIP** | *Detection Only* | ROCm 5.x/6.x, `rocm-smi`, `hipconfig` | None (Stub) | *Unqualified (Pending Kernels)* |
-| **Intel oneAPI** | *Detection Only* | oneAPI, DPC++, `sycl-ls` | None (Stub) | *Unqualified (Pending Kernels)* |
-| **Intel OpenVINO** | *Detection Only* | `openvino` Python package | None (Stub) | *Unqualified (Pending Kernels)* |
-| **DirectML** | *Detection Only* | DirectX 12, `onnxruntime-directml` | None (Stub) | *Unqualified (Pending Kernels)* |
-| **Apple Metal** | *Detection Only* | macOS Metal.framework, MPS | None (Stub) | *Unqualified (Pending Kernels)* |
-| **Vulkan Compute** | *Detection Only* | Vulkan SDK, `vulkaninfo` | None (Stub) | *Unqualified (Pending Kernels)* |
-| **OpenCL** | *Detection Only* | OpenCL ICD, `pyopencl` | None (Stub) | *Unqualified (Pending Kernels)* |
-| **Qualcomm QNN** | *Detection Only* | Qualcomm AI Engine SDK | None (Stub) | *Unqualified (Pending Kernels)* |
-| **ONNX Runtime** | *Detection Only* | `onnxruntime` package | None (Stub) | *Unqualified (Pending Kernels)* |
+| **CPU** | Python, NumPy, OS CPU APIs | All standard operations (Math, LinAlg, Reductions, NN, Autograd) | **Implemented and tested** | Primary baseline; always operational. |
+| **NVIDIA CUDA** | CUDA Toolkit 11.8+, Driver 525+, pybind11 | C++/CUDA kernels for `add`, `multiply`, `matmul`, `relu`, `sum_all`, `ResidentTensor` (float32 only) | **Implemented and tested** (when compiled and GPU attached); **Implemented but not tested on real hardware** (transfer mock validation when GPU absent) | Clean CPU fallback for unbuilt extension or non-float32 dtypes (`strict=False`). Raises in strict mode. Non-float32 CUDA execution is **Unsupported**. |
+| **AMD ROCm / HIP** | ROCm 5.x/6.x, `rocm-smi`, `hipconfig` on Linux | None (Pending Phase 3 HIP kernels) | **Device detection only**; Compute is **Not implemented** | Execution safely falls back to CPU. Windows ROCm is **Unsupported**. Never auto-selected. |
+| **Intel oneAPI** | oneAPI, DPC++, `sycl-ls`, Level Zero | None (Pending Phase 3 SYCL kernels) | **Device detection only**; Compute is **Not implemented** | Execution safely falls back to CPU. Never auto-selected. |
+| **Intel OpenVINO** | `openvino` Python package | None (Pending Phase 3 OpenVINO bridge) | **Device detection only**; Compute is **Not implemented** | Execution safely falls back to CPU. Never auto-selected. |
+| **DirectML** | DirectX 12, `onnxruntime-directml` | None (Pending Phase 3 DirectML graph kernels) | **Device detection only**; Compute is **Not implemented** | Execution safely falls back to CPU. Non-Windows OS is **Unsupported**. Never auto-selected. |
+| **Apple Metal** | macOS Metal.framework, MPS | None (Pending Phase 3 Metal shaders) | **Device detection only**; Compute is **Not implemented** | Execution safely falls back to CPU. Non-macOS is **Unsupported**. Never auto-selected. |
+| **Vulkan Compute** | Vulkan SDK, `vulkaninfo` | None (Pending Phase 3 SPIR-V shaders) | **Device detection only**; Compute is **Not implemented** | Execution safely falls back to CPU. Merely having `vulkaninfo` does NOT enable compute. Never auto-selected. |
+| **OpenCL** | OpenCL ICD, `pyopencl` | None (Pending Phase 3 OpenCL C kernels) | **Device detection only**; Compute is **Not implemented** | Execution safely falls back to CPU. Never auto-selected. |
+| **Qualcomm QNN** | Qualcomm AI Engine SDK | None (Pending Phase 3 QNN graph dispatch) | **Device detection only**; Compute is **Not implemented** | Execution safely falls back to CPU. Never auto-selected. |
+| **ONNX Runtime** | `onnxruntime` package | None (Pending Phase 3 graph bridge) | **Device detection only**; Compute is **Not implemented** | Execution safely falls back to CPU. Never auto-selected. |
 
 ---
 

@@ -33,6 +33,14 @@ The CUDA extension provides native float32 kernels:
 - `sum`: Parallel reduction sum.
 - `ResidentTensor`: GPU-resident inference tensor avoiding host-device transfer roundtrips.
 
+## Qualification Tier & Implementation Status
+
+- **Qualification Tier**:
+  - **Implemented and tested**: When physical NVIDIA GPU is attached and the extension is built, all five C++/CUDA kernels (`vector_add`, `vector_multiply`, `matmul`, `relu`, `sum`) and `ResidentTensor` are tested against CPU reference.
+  - **Implemented but not tested on real hardware**: When physical NVIDIA GPU is absent (e.g. CI runners), boundary transfer counts and protocol adherence are verified via mocked extension tests in `tests/test_cuda_resident_transfers.py`.
+- **Compute Kernels**: **Implemented** for `float32` arrays only.
+- **Unsupported Features**: Non-float32 execution (`float64`, `int32`, `int64`) on CUDA is **Unsupported** by the kernels and safely routes to CPU NumPy unless `strict=True`, in which case it raises `EveryOCudaError`. Mismatched shapes without explicit expansion are also unsupported on CUDA.
+
 ## Strict vs. Fallback Mode
 
 ```python

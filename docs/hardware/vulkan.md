@@ -22,6 +22,8 @@ for dev in vulkan_devices:
     print(f"Vulkan Device: {dev.name}")
 ```
 
-## Qualification
+## Qualification Tier & Implementation Status
 
-Vulkan device detection is operational and verified. Compute execution via SPIR-V shaders is tracked for subsequent phases.
+- **Qualification Tier**: **Device detection only** (Cross-platform).
+- **Compute Kernels**: **Not implemented**. Vulkan compute execution via SPIR-V shaders is tracked for Phase 3.
+- **Execution & Fallback Behavior**: Merely having `vulkaninfo` on PATH does NOT enable compute execution. Requesting `vulkan` safely falls back to CPU when `strict=False`, or raises `EveryODeviceError` when `strict=True`. It is never auto-selected by `eo.device("auto")`.

@@ -32,7 +32,9 @@ from everyo.backends.operator_backend import (
     NumpyOperatorBackend,
     OperatorBackend,
     backend_for,
+    clear_dispatch_history,
     dispatch,
+    get_last_dispatch,
 )
 from everyo.backends.registry import (
     detect_all,
@@ -56,7 +58,9 @@ __all__ = [
     "CudaOperatorBackend",
     "DispatchResult",
     "backend_for",
+    "clear_dispatch_history",
     "dispatch",
+    "get_last_dispatch",
     # --- new multi-backend public API ---
     "HardwareBackend",
     "BackendCapabilities",

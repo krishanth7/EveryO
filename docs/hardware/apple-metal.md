@@ -18,3 +18,10 @@ import everyo as eo
 status = eo.backends.get_backend_status()["metal"]
 print(f"Metal Status: {status['status']} - {status['reason']}")
 ```
+
+## Qualification Tier & Implementation Status
+
+- **Qualification Tier**: **Device detection only** (macOS).
+- **Compute Kernels**: **Not implemented**. Metal Performance Shaders (MPS) kernels are tracked for Phase 3.
+- **Unsupported Environments**: Non-macOS operating systems (Windows, Linux) are **Unsupported** for Metal.
+- **Execution & Fallback Behavior**: Detection-only support does NOT execute compute operations. Requesting `metal` safely falls back to CPU when `strict=False`, or raises `EveryODeviceError` when `strict=True`. It is never auto-selected by `eo.device("auto")`.

@@ -206,12 +206,12 @@ def _auto_select_device() -> Device:
 
 
 def _is_backend_available(name: str) -> bool:
-    """Check if a named backend is available through the registry."""
+    """Check if a named backend is operational through the registry."""
     try:
         from everyo.backends.registry import get_backend
 
         backend = get_backend(name)
-        return backend is not None and backend.is_available()
+        return backend is not None and backend.is_operational()
     except Exception:
         return False
 

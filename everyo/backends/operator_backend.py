@@ -7,6 +7,7 @@ place and gives future backends a small, testable contract.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
@@ -21,8 +22,25 @@ __all__ = [
     "NumpyOperatorBackend",
     "CudaOperatorBackend",
     "backend_for",
+    "clear_dispatch_history",
     "dispatch",
+    "get_last_dispatch",
 ]
+
+_LOGGER = logging.getLogger(__name__)
+
+_LAST_DISPATCH_RESULT: DispatchResult | None = None
+
+
+def get_last_dispatch() -> DispatchResult | None:
+    """Return the most recent DispatchResult, or None if dispatch has not run."""
+    return _LAST_DISPATCH_RESULT
+
+
+def clear_dispatch_history() -> None:
+    """Reset the recorded dispatch result."""
+    global _LAST_DISPATCH_RESULT
+    _LAST_DISPATCH_RESULT = None
 
 
 @dataclass(frozen=True)
@@ -151,11 +169,23 @@ def backend_for(device: Device | str) -> OperatorBackend:
 
 def dispatch(operation: str, device: Device, *arrays: np.ndarray) -> DispatchResult:
     """Execute an operator and report whether/why CPU fallback occurred."""
+    global _LAST_DISPATCH_RESULT
+
     requested = backend_for(device)
     if requested.supports(operation, *arrays):
-        return DispatchResult(requested.execute(operation, *arrays), requested.name, requested.name)
+        res = DispatchResult(requested.execute(operation, *arrays), requested.name, requested.name)
+        _LAST_DISPATCH_RESULT = res
+        return res
 
     reason = requested.unsupported_reason(operation, *arrays)
     if not _NUMPY.supports(operation, *arrays):
         raise NotImplementedError(reason)
-    return DispatchResult(_NUMPY.execute(operation, *arrays), requested.name, _NUMPY.name, reason)
+    res = DispatchResult(_NUMPY.execute(operation, *arrays), requested.name, _NUMPY.name, reason)
+    _LAST_DISPATCH_RESULT = res
+    _LOGGER.info(
+        "Operator '%s' on backend '%s' fell back to CPU/NumPy: %s",
+        operation,
+        requested.name,
+        reason,
+    )
+    return res

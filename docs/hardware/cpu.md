@@ -28,3 +28,9 @@ The CPU backend supports 100% of EveryO's standard operations:
 - Activations: `relu`, `sigmoid`, `tanh`, `softmax`, `log_softmax`.
 - Convolutions: `conv2d`, `max_pool2d`, `avg_pool2d`.
 - Normalization: `batch_norm`, `layer_norm`.
+
+## Qualification Tier & Implementation Status
+
+- **Qualification Tier**: **Implemented and tested** (Cross-platform).
+- **Compute Kernels**: **Implemented** for all operations and standard dtypes (`float32`, `float64`, integers).
+- **Fallback Role**: Primary reference baseline. The CPU backend never falls back to any other device. Every other backend falls back to CPU when unsupported operations, dtypes, or shapes are encountered.

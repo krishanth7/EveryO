@@ -81,27 +81,35 @@ class BackendManager:
 
         if requested != "auto":
             backend = get_backend(requested)
-            if backend is not None and backend.is_available():
+            if backend is not None and backend.is_operational():
                 if operation is None or backend.supports_operation(operation):
                     self._last_selection_report["selected"] = backend.name
                     return backend
-                # Backend is available but does not support the operation.
+                # Backend is operational but does not support the requested operation.
                 reason = f"Backend '{requested}' does not support operation '{operation}'."
                 self._fallback_log.append({"requested": requested, "reason": reason})
                 self._last_selection_report["reasons"].append(reason)
                 if strict:
                     raise RuntimeError(reason)
             else:
-                reason = (
-                    f"Backend '{requested}' is not available"
-                    + (f": {backend.unavailable_reason()}" if backend else "")
-                    + "."
-                )
+                if backend is not None and not backend.is_operational():
+                    if not backend.is_available():
+                        unavail = backend.unavailable_reason()
+                        reason = f"Backend '{requested}' is not available" + (
+                            f": {unavail}" if unavail else "."
+                        )
+                    else:
+                        reason = (
+                            f"Backend '{requested}' is detection-only and not operational "
+                            "(no compute kernels implemented)."
+                        )
+                else:
+                    reason = f"Backend '{requested}' is not registered."
                 self._fallback_log.append({"requested": requested, "reason": reason})
                 self._last_selection_report["reasons"].append(reason)
                 if strict:
                     raise RuntimeError(reason)
-            _LOGGER.info("Backend '%s' unavailable, trying fallback.", requested)
+            _LOGGER.info("Backend '%s' unavailable or non-operational, trying fallback.", requested)
             self._last_selection_report["fallback_occurred"] = True
 
         # Auto-selection: iterate available backends in priority order.

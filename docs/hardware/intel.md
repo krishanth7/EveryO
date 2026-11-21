@@ -20,6 +20,8 @@ for dev in intel_devices:
     print(f"Intel Device: {dev.name}")
 ```
 
-## Qualification Status
+## Qualification Tier & Implementation Status
 
-Detection and runtime discovery are qualified. Compute kernels and OpenVINO inference bridge are tracked for Phase 3.
+- **Qualification Tier**: **Device detection only** (Linux, Windows).
+- **Compute Kernels**: **Not implemented**. oneAPI/SYCL kernels and OpenVINO inference bridge are planned for Phase 3.
+- **Execution & Fallback Behavior**: Detection-only support does NOT execute compute operations. Requesting `intel`, `sycl`, or `openvino` safely falls back to CPU when `strict=False`, or raises `EveryODeviceError` when `strict=True`. It is never auto-selected by `eo.device("auto")`.
