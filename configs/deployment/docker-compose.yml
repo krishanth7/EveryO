@@ -1,0 +1,48 @@
+# Docker Compose specification for production-like EveryO serving topology
+# Deploys EveryO CPU serving behind a hardened Nginx reverse proxy
+
+version: "3.8"
+
+services:
+  everyo-backend:
+    build:
+      context: ../..
+      dockerfile: configs/deployment/Dockerfile
+    restart: unless-stopped
+    environment:
+      - PORT=8000
+      - EVERYO_ENV=production
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    networks:
+      - internal-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; resp = urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2); exit(0 if resp.status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  reverse-proxy:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      everyo-backend:
+        condition: service_healthy
+    networks:
+      - internal-net
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  internal-net:
+    driver: bridge

@@ -111,8 +111,10 @@ def _handler_factory() -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:
             if not self._authorized():
                 self._reply(401, {"error": "unauthorized"})
-            elif self.path == "/health":
+            elif self.path in {"/health", "/healthz"}:
                 self._reply(200, {"status": "ok", "backend": "cpu"})
+            elif self.path in {"/ready", "/readyz"}:
+                self._reply(200, {"status": "ready", "backend": "cpu"})
             elif self.path == "/metrics":
                 self._reply(200, self.server.metrics.snapshot())
             else:
