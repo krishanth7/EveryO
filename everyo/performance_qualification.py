@@ -60,13 +60,29 @@ def calculate_percentile(sorted_values: list[float], percentile: float) -> float
 def get_environment_metadata() -> dict[str, Any]:
     """Capture comprehensive environment and hardware metadata."""
     mem_stats = get_process_memory()
+    blas_info: Any = None
+    try:
+        blas_info = np.show_config(mode="dicts")
+    except Exception:
+        try:
+            blas_info = str(getattr(np.__config__, "blas_opt_info", {}))
+        except Exception:
+            blas_info = None
+
     return {
         "everyo_version": __version__,
         "python_version": platform.python_version(),
+        "python_major_minor": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "os_name": platform.system(),
+        "os_release": platform.release(),
+        "architecture": platform.machine(),
         "platform": f"{platform.system()} {platform.release()} ({platform.machine()})",
         "processor": platform.processor() or "unknown",
         "cpu_count_logical": os.cpu_count() or 1,
         "numpy_version": np.__version__,
+        "numpy_major": np.__version__.split(".")[0],
+        "blas_info": blas_info,
+        "benchmark_suite_version": "21.3.1",
         "process_pid": os.getpid(),
         "initial_rss_bytes": mem_stats.get("rss_bytes"),
     }
@@ -278,8 +294,8 @@ class BenchmarkMetric:
     max_ms: float
     p90_ms: float
     p95_ms: float
-    p99_ms: float
     throughput_per_second: float
+    p99_ms: float | None = None
     numpy_baseline_median_ms: float | None = None
     speedup_vs_numpy: float | None = None
     memory_rss_bytes: int | None = None
@@ -624,8 +640,8 @@ def benchmark_neural_computation(
 
 def benchmark_model_operations(
     *,
-    warmup: int = 2,
-    repeats: int = 5,
+    warmup: int = 5,
+    repeats: int = 25,
     seed: int = 42,
 ) -> list[BenchmarkMetric]:
     """Benchmark end-to-end model operations: initialization, serialization, deserialization, inference."""
@@ -660,8 +676,8 @@ def benchmark_model_operations(
             max_ms=init_lats[-1],
             p90_ms=calculate_percentile(init_lats, 0.90),
             p95_ms=calculate_percentile(init_lats, 0.95),
-            p99_ms=calculate_percentile(init_lats, 0.99),
             throughput_per_second=1000.0 / max(med_init, 1e-6),
+            p99_ms=calculate_percentile(init_lats, 0.99) if len(init_lats) >= 100 else None,
             memory_rss_bytes=mem_info.get("rss_bytes"),
         )
     )
@@ -672,7 +688,7 @@ def benchmark_model_operations(
         model_file = Path(tmpdir) / "bench_model.eo"
 
         save_lats = _measure_latency_series(
-            lambda: eo.save(m, model_file), warmup=1, repeats=repeats
+            lambda: eo.save(m, model_file), warmup=max(2, warmup // 2), repeats=repeats
         )
         med_save = calculate_percentile(save_lats, 0.50)
         metrics.append(
@@ -682,7 +698,7 @@ def benchmark_model_operations(
                 workload={"op": "save_to_disk"},
                 dtype="float32",
                 backend="numpy_cpu",
-                warmup_iterations=1,
+                warmup_iterations=max(2, warmup // 2),
                 measured_iterations=repeats,
                 median_ms=med_save,
                 mean_ms=statistics.mean(save_lats),
@@ -691,13 +707,13 @@ def benchmark_model_operations(
                 max_ms=save_lats[-1],
                 p90_ms=calculate_percentile(save_lats, 0.90),
                 p95_ms=calculate_percentile(save_lats, 0.95),
-                p99_ms=calculate_percentile(save_lats, 0.99),
                 throughput_per_second=1000.0 / max(med_save, 1e-6),
+                p99_ms=calculate_percentile(save_lats, 0.99) if len(save_lats) >= 100 else None,
                 memory_rss_bytes=mem_info.get("rss_bytes"),
             )
         )
 
-        load_lats = _measure_latency_series(lambda: eo.load(model_file), warmup=1, repeats=repeats)
+        load_lats = _measure_latency_series(lambda: eo.load(model_file), warmup=warmup, repeats=repeats)
         med_load = calculate_percentile(load_lats, 0.50)
         metrics.append(
             BenchmarkMetric(
@@ -706,7 +722,7 @@ def benchmark_model_operations(
                 workload={"op": "load_from_disk"},
                 dtype="float32",
                 backend="numpy_cpu",
-                warmup_iterations=1,
+                warmup_iterations=warmup,
                 measured_iterations=repeats,
                 median_ms=med_load,
                 mean_ms=statistics.mean(load_lats),
@@ -715,8 +731,36 @@ def benchmark_model_operations(
                 max_ms=load_lats[-1],
                 p90_ms=calculate_percentile(load_lats, 0.90),
                 p95_ms=calculate_percentile(load_lats, 0.95),
-                p99_ms=calculate_percentile(load_lats, 0.99),
                 throughput_per_second=1000.0 / max(med_load, 1e-6),
+                p99_ms=calculate_percentile(load_lats, 0.99) if len(load_lats) >= 100 else None,
+                memory_rss_bytes=mem_info.get("rss_bytes"),
+            )
+        )
+
+        # 3. In-memory deserialization (isolating CPU parsing/reconstruction from filesystem I/O)
+        model_bytes = model_file.read_bytes()
+        mem_load_lats = _measure_latency_series(
+            lambda: eo.load(model_bytes), warmup=warmup, repeats=repeats
+        )
+        med_mem_load = calculate_percentile(mem_load_lats, 0.50)
+        metrics.append(
+            BenchmarkMetric(
+                benchmark_id="model_deserialization_memory_eo",
+                category="model_op",
+                workload={"op": "load_from_memory"},
+                dtype="float32",
+                backend="numpy_cpu",
+                warmup_iterations=warmup,
+                measured_iterations=repeats,
+                median_ms=med_mem_load,
+                mean_ms=statistics.mean(mem_load_lats),
+                stddev_ms=statistics.stdev(mem_load_lats) if len(mem_load_lats) > 1 else 0.0,
+                min_ms=mem_load_lats[0],
+                max_ms=mem_load_lats[-1],
+                p90_ms=calculate_percentile(mem_load_lats, 0.90),
+                p95_ms=calculate_percentile(mem_load_lats, 0.95),
+                throughput_per_second=1000.0 / max(med_mem_load, 1e-6),
+                p99_ms=calculate_percentile(mem_load_lats, 0.99) if len(mem_load_lats) >= 100 else None,
                 memory_rss_bytes=mem_info.get("rss_bytes"),
             )
         )
@@ -742,7 +786,7 @@ def run_comprehensive_cpu_benchmark(
         batch_sizes=batch_sizes, warmup=warmup, repeats=repeats, seed=seed
     )
     model_metrics = benchmark_model_operations(
-        warmup=warmup, repeats=max(3, repeats // 2), seed=seed
+        warmup=max(3, warmup), repeats=max(15, repeats), seed=seed
     )
     total_elapsed = time.perf_counter() - t_start
 
@@ -1437,49 +1481,332 @@ def run_fault_injection_suite() -> dict[str, Any]:
 # ==============================================================================
 
 
+@dataclass
+class EnvironmentCompatibilityResult:
+    """Detailed summary of environment compatibility check between two benchmark runs."""
+
+    is_compatible: bool
+    reasons: list[str]
+    current_env: dict[str, Any]
+    baseline_env: dict[str, Any]
+
+
+def _extract_os_family(env: dict[str, Any]) -> str:
+    if "os_name" in env and env["os_name"]:
+        return str(env["os_name"]).strip().lower()
+    platform_str = str(env.get("platform", "")).strip().lower()
+    for os_key in ("windows", "linux", "darwin"):
+        if os_key in platform_str:
+            return os_key
+    return platform_str.split()[0] if platform_str else "unknown"
+
+
+def _extract_arch(env: dict[str, Any]) -> str:
+    arch = str(env.get("architecture", "")).strip().lower()
+    if not arch:
+        platform_str = str(env.get("platform", "")).strip().lower()
+        if "amd64" in platform_str or "x86_64" in platform_str:
+            return "x86_64"
+        if "arm64" in platform_str or "aarch64" in platform_str:
+            return "arm64"
+        return "unknown"
+    if arch in ("amd64", "x86_64"):
+        return "x86_64"
+    if arch in ("arm64", "aarch64"):
+        return "arm64"
+    return arch
+
+
+def check_environment_compatibility(
+    current_env: dict[str, Any],
+    baseline_env: dict[str, Any],
+    *,
+    strict_cpu: bool = False,
+    strict_python_patch: bool = False,
+    strict_numpy_patch: bool = False,
+) -> EnvironmentCompatibilityResult:
+    """Validate whether current and baseline benchmark environments are comparable.
+
+    Environments are incompatible if operating system family, machine architecture,
+    Python major.minor, NumPy major version, or CPU identity (under strict policy) differ.
+    """
+    reasons: list[str] = []
+
+    if not current_env or not baseline_env:
+        return EnvironmentCompatibilityResult(
+            is_compatible=False,
+            reasons=["Missing environment metadata in one or both benchmark runs."],
+            current_env=current_env or {},
+            baseline_env=baseline_env or {},
+        )
+
+    # 1. Operating system family
+    curr_os = _extract_os_family(current_env)
+    base_os = _extract_os_family(baseline_env)
+    if curr_os != base_os and curr_os != "unknown" and base_os != "unknown":
+        reasons.append(
+            f"Operating system mismatch: current={current_env.get('platform', curr_os)} vs baseline={baseline_env.get('platform', base_os)}"
+        )
+
+    # 2. Machine architecture
+    curr_arch = _extract_arch(current_env)
+    base_arch = _extract_arch(baseline_env)
+    if curr_arch != base_arch and curr_arch != "unknown" and base_arch != "unknown":
+        reasons.append(
+            f"Machine architecture mismatch: current={curr_arch} vs baseline={base_arch}"
+        )
+
+    # 3. Python version
+    curr_py = str(current_env.get("python_version", "")).strip()
+    base_py = str(baseline_env.get("python_version", "")).strip()
+    if curr_py and base_py:
+        if strict_python_patch:
+            if curr_py != base_py:
+                reasons.append(f"Python patch version mismatch: current={curr_py} vs baseline={base_py}")
+        else:
+            curr_mm = ".".join(curr_py.split(".")[:2])
+            base_mm = ".".join(base_py.split(".")[:2])
+            if curr_mm != base_mm:
+                reasons.append(f"Python version mismatch: current={curr_py} vs baseline={base_py}")
+
+    # 4. NumPy version
+    curr_np = str(current_env.get("numpy_version", "")).strip()
+    base_np = str(baseline_env.get("numpy_version", "")).strip()
+    if curr_np and base_np:
+        if strict_numpy_patch:
+            if curr_np != base_np:
+                reasons.append(f"NumPy patch version mismatch: current={curr_np} vs baseline={base_np}")
+        else:
+            curr_np_major = curr_np.split(".")[0]
+            base_np_major = base_np.split(".")[0]
+            if curr_np_major != base_np_major:
+                reasons.append(f"NumPy major version mismatch: current={curr_np} vs baseline={base_np}")
+
+    # 5. Processor / CPU model identity
+    curr_proc = str(current_env.get("processor", "")).strip().lower()
+    base_proc = str(baseline_env.get("processor", "")).strip().lower()
+    if (
+        strict_cpu
+        and curr_proc
+        and base_proc
+        and curr_proc != "unknown"
+        and base_proc != "unknown"
+        and curr_proc != base_proc
+    ):
+        reasons.append(f"Processor model mismatch: current={curr_proc} vs baseline={base_proc}")
+
+    return EnvironmentCompatibilityResult(
+        is_compatible=len(reasons) == 0,
+        reasons=reasons,
+        current_env=current_env,
+        baseline_env=baseline_env,
+    )
+
+
 def evaluate_performance_regression(
     current_results: dict[str, Any],
     baseline_results: dict[str, Any],
     *,
     warning_threshold: float = 0.15,
     failure_threshold: float = 0.30,
+    noise_floor_ms: float = 0.5,
+    strict_cpu: bool = False,
+    strict_python_patch: bool = False,
+    strict_numpy_patch: bool = False,
 ) -> dict[str, Any]:
-    """Compare current benchmark results against baseline with noise-aware thresholds."""
+    """Compare current benchmark results against baseline with environment and noise-aware gates.
+
+    Outcomes:
+        - PASS: Compatible environment with no performance regressions exceeding thresholds.
+        - WARN: Compatible environment with moderate regression (between warning and failure threshold).
+        - FAIL: Compatible environment with genuine regression exceeding failure threshold.
+        - INCOMPARABLE: Environment or workload mismatch prevents meaningful timing comparisons.
+        - MISSING_BASELINE: No baseline data available for comparison.
+    """
     current_benchmarks = current_results.get("benchmarks", {})
     baseline_benchmarks = baseline_results.get("benchmarks", {})
 
+    # Check for empty / missing baseline
+    if not baseline_benchmarks:
+        missing_comps = [
+            {
+                "benchmark_id": b_id,
+                "status": "MISSING_BASELINE",
+                "reason": "Baseline record missing or empty",
+                "baseline_median_ms": None,
+                "current_median_ms": b_entry.get("median_ms") if isinstance(b_entry, dict) else None,
+                "delta_ms": None,
+                "delta_pct": None,
+            }
+            for b_id, b_entry in current_benchmarks.items()
+        ]
+        return {
+            "status": "MISSING_BASELINE",
+            "passed": None,
+            "is_compatible": False,
+            "total_benchmarks": len(current_benchmarks),
+            "total_compared": 0,
+            "pass_count": 0,
+            "warning_count": 0,
+            "failure_count": 0,
+            "incomparable_count": 0,
+            "missing_baseline_count": len(missing_comps),
+            "environment_compatible": False,
+            "environment_differences": ["Missing baseline benchmark records."],
+            "warnings": [],
+            "failures": [],
+            "incomparables": [],
+            "comparisons": missing_comps,
+            "notice": "A baseline record is required to perform regression qualification.",
+        }
+
+    # Check benchmark suite version compatibility
+    curr_suite = current_results.get("benchmark_suite_version")
+    base_suite = baseline_results.get("benchmark_suite_version")
+    suite_mismatch: str | None = None
+    if curr_suite and base_suite and curr_suite != base_suite:
+        suite_mismatch = f"Benchmark suite version mismatch: current={curr_suite} vs baseline={base_suite}"
+
+    # Check environment metadata compatibility
+    current_env = current_results.get("environment")
+    baseline_env = baseline_results.get("environment")
+    env_compat = None
+    if current_env and baseline_env:
+        env_compat = check_environment_compatibility(
+            current_env,
+            baseline_env,
+            strict_cpu=strict_cpu,
+            strict_python_patch=strict_python_patch,
+            strict_numpy_patch=strict_numpy_patch,
+        )
+
+    env_incompatible_reasons: list[str] = []
+    if suite_mismatch:
+        env_incompatible_reasons.append(suite_mismatch)
+    if env_compat and not env_compat.is_compatible:
+        env_incompatible_reasons.extend(env_compat.reasons)
+
+    # If the suite or environment as a whole is incompatible:
+    if env_incompatible_reasons:
+        incomp_comps = []
+        for b_id, base_entry in baseline_benchmarks.items():
+            curr_entry = current_benchmarks.get(b_id, {})
+            base_med = base_entry.get("median_ms") if isinstance(base_entry, dict) else None
+            curr_med = curr_entry.get("median_ms") if isinstance(curr_entry, dict) else None
+            incomp_comps.append(
+                {
+                    "benchmark_id": b_id,
+                    "status": "INCOMPARABLE",
+                    "reason": "; ".join(env_incompatible_reasons),
+                    "baseline_median_ms": base_med,
+                    "current_median_ms": curr_med,
+                    "delta_ms": None,
+                    "delta_pct": None,
+                }
+            )
+
+        return {
+            "status": "INCOMPARABLE",
+            "passed": None,
+            "is_compatible": False,
+            "total_benchmarks": len(current_benchmarks),
+            "total_compared": 0,
+            "pass_count": 0,
+            "warning_count": 0,
+            "failure_count": 0,
+            "incomparable_count": len(incomp_comps),
+            "missing_baseline_count": 0,
+            "environment_compatible": False,
+            "environment_differences": env_incompatible_reasons,
+            "warnings": [],
+            "failures": [],
+            "incomparables": [f"{c['benchmark_id']}: INCOMPARABLE ({c['reason']})" for c in incomp_comps],
+            "comparisons": incomp_comps,
+            "notice": "A compatible baseline matching the current execution environment is required for performance regression evaluation.",
+        }
+
+    # Environment is compatible (or no environment block was provided, e.g. in targeted test fixtures)
     comparisons: list[dict[str, Any]] = []
     warnings: list[str] = []
     failures: list[str] = []
+    incomparables: list[str] = []
+    missing_baselines: list[str] = []
 
-    for b_id, base_entry in baseline_benchmarks.items():
-        if b_id not in current_benchmarks:
+    for b_id, curr_entry in current_benchmarks.items():
+        if not isinstance(curr_entry, dict):
             continue
-        curr_entry = current_benchmarks[b_id]
+        if b_id not in baseline_benchmarks:
+            comparisons.append(
+                {
+                    "benchmark_id": b_id,
+                    "status": "MISSING_BASELINE",
+                    "reason": "Benchmark not present in reference baseline",
+                    "baseline_median_ms": None,
+                    "current_median_ms": curr_entry.get("median_ms"),
+                    "delta_ms": None,
+                    "delta_pct": None,
+                }
+            )
+            missing_baselines.append(b_id)
+            continue
 
+        base_entry = baseline_benchmarks[b_id]
+        if not isinstance(base_entry, dict):
+            continue
+
+        # Check per-benchmark workload, backend, dtype compatibility
+        curr_backend = curr_entry.get("backend")
+        base_backend = base_entry.get("backend")
+        curr_workload = curr_entry.get("workload")
+        base_workload = base_entry.get("workload")
+        curr_dtype = curr_entry.get("dtype")
+        base_dtype = base_entry.get("dtype")
+
+        item_incompatible: list[str] = []
+        if curr_backend and base_backend and curr_backend != base_backend:
+            item_incompatible.append(f"Backend mismatch: {curr_backend} vs {base_backend}")
+        if curr_workload and base_workload and curr_workload != base_workload:
+            item_incompatible.append(f"Workload mismatch: {curr_workload} vs {base_workload}")
+        if curr_dtype and base_dtype and curr_dtype != base_dtype:
+            item_incompatible.append(f"Data type mismatch: {curr_dtype} vs {base_dtype}")
+
+        if item_incompatible:
+            comparisons.append(
+                {
+                    "benchmark_id": b_id,
+                    "status": "INCOMPARABLE",
+                    "reason": "; ".join(item_incompatible),
+                    "baseline_median_ms": base_entry.get("median_ms"),
+                    "current_median_ms": curr_entry.get("median_ms"),
+                    "delta_ms": None,
+                    "delta_pct": None,
+                }
+            )
+            incomparables.append(f"{b_id}: {'; '.join(item_incompatible)}")
+            continue
+
+        # Evaluate timing comparison
         base_med = base_entry.get("median_ms", 0.0)
         curr_med = curr_entry.get("median_ms", 0.0)
 
-        # Noise-aware filter:
-        # On modern multitasking OS/laptops, scheduling jitter under 0.5ms or 15% is noise.
-        # Regressions are flagged when absolute delta >= 0.5ms AND percentage exceeds thresholds.
         abs_delta = curr_med - base_med
-        if abs(abs_delta) < 0.5:
+        if abs(abs_delta) < noise_floor_ms:
             delta_pct = 0.0
+            status = "PASS"
         else:
             delta_pct = abs_delta / max(base_med, 1e-6)
-
-        status = "PASS"
-        if delta_pct > failure_threshold:
-            status = "FAIL"
-            failures.append(
-                f"{b_id}: {curr_med:.3f}ms vs baseline {base_med:.3f}ms (+{delta_pct * 100:.1f}%)"
-            )
-        elif delta_pct > warning_threshold:
-            status = "WARN"
-            warnings.append(
-                f"{b_id}: {curr_med:.3f}ms vs baseline {base_med:.3f}ms (+{delta_pct * 100:.1f}%)"
-            )
+            if delta_pct > failure_threshold:
+                status = "FAIL"
+                failures.append(
+                    f"{b_id}: {curr_med:.3f}ms vs baseline {base_med:.3f}ms (+{delta_pct * 100:.1f}%)"
+                )
+            elif delta_pct > warning_threshold:
+                status = "WARN"
+                warnings.append(
+                    f"{b_id}: {curr_med:.3f}ms vs baseline {base_med:.3f}ms (+{delta_pct * 100:.1f}%)"
+                )
+            else:
+                status = "PASS"
 
         comparisons.append(
             {
@@ -1492,13 +1819,44 @@ def evaluate_performance_regression(
             }
         )
 
+    pass_count = sum(1 for c in comparisons if c["status"] == "PASS")
+    incomp_count = len(incomparables)
+    missing_count = len(missing_baselines)
+
+    if failures:
+        overall_status = "FAIL"
+        passed = False
+    elif warnings:
+        overall_status = "WARN"
+        passed = True
+    elif incomp_count > 0 and pass_count == 0:
+        overall_status = "INCOMPARABLE"
+        passed = None
+    elif missing_count > 0 and pass_count == 0:
+        overall_status = "MISSING_BASELINE"
+        passed = None
+    else:
+        overall_status = "PASS"
+        passed = True
+
+    valid_compared = sum(1 for c in comparisons if c["status"] in ("PASS", "WARN", "FAIL"))
+
     return {
-        "total_compared": len(comparisons),
+        "status": overall_status,
+        "passed": passed,
+        "is_compatible": incomp_count == 0,
+        "total_benchmarks": len(current_benchmarks),
+        "total_compared": valid_compared,
+        "pass_count": pass_count,
         "warning_count": len(warnings),
         "failure_count": len(failures),
-        "passed": len(failures) == 0,
+        "incomparable_count": incomp_count,
+        "missing_baseline_count": missing_count,
+        "environment_compatible": True,
+        "environment_differences": [],
         "warnings": warnings,
         "failures": failures,
+        "incomparables": incomparables,
         "comparisons": comparisons,
     }
 

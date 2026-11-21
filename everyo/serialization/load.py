@@ -59,37 +59,51 @@ def _validate_npz(payload: bytes) -> None:
         raise EveryOSerializationError("Parameters are not a valid NumPy archive.") from exc
 
 
-def _open_archive(path: Path) -> zipfile.ZipFile:
-    if not path.is_file():
-        raise EveryOSerializationError(f"Model file not found: {path}")
+def _open_archive(path: Path | str | io.BytesIO | bytes) -> zipfile.ZipFile:
+    if isinstance(path, (io.BytesIO, bytes)):
+        buf = path if isinstance(path, io.BytesIO) else io.BytesIO(path)
+        try:
+            return zipfile.ZipFile(buf, "r")
+        except zipfile.BadZipFile as exc:
+            raise EveryOSerializationError(
+                f"In-memory data is not a valid EveryO model archive ({exc})."
+            ) from exc
+
+    archive_path = Path(path)
+    if not archive_path.is_file():
+        raise EveryOSerializationError(f"Model file not found: {archive_path}")
     try:
-        return zipfile.ZipFile(path, "r")
+        return zipfile.ZipFile(archive_path, "r")
     except zipfile.BadZipFile as exc:
         raise EveryOSerializationError(
-            f"{path} is not a valid EveryO model archive ({exc})."
+            f"{archive_path} is not a valid EveryO model archive ({exc})."
         ) from exc
 
 
-def load_manifest(path: str | Path) -> dict[str, Any]:
-    """Read the manifest of an archive without rebuilding the model."""
-    archive_path = Path(path)
-    with _open_archive(archive_path) as archive:
-        if MANIFEST_NAME not in archive.namelist():
-            raise EveryOSerializationError(
-                f"{archive_path} does not contain {MANIFEST_NAME}; it was not "
-                "written by everyo.save()."
-            )
-        try:
-            manifest = json.loads(
-                _bounded_member(archive, MANIFEST_NAME, MAX_MANIFEST_BYTES).decode("utf-8")
-            )
-        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            raise EveryOSerializationError(
-                f"The manifest in {archive_path} is corrupt ({exc})."
-            ) from exc
+def _read_manifest_from_archive(archive: zipfile.ZipFile, archive_path: Path | str) -> dict[str, Any]:
+    if MANIFEST_NAME not in archive.namelist():
+        raise EveryOSerializationError(
+            f"{archive_path} does not contain {MANIFEST_NAME}; it was not "
+            "written by everyo.save()."
+        )
+    try:
+        manifest = json.loads(
+            _bounded_member(archive, MANIFEST_NAME, MAX_MANIFEST_BYTES).decode("utf-8")
+        )
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise EveryOSerializationError(
+            f"The manifest in {archive_path} is corrupt ({exc})."
+        ) from exc
     if not isinstance(manifest, dict):
         raise EveryOSerializationError(f"The manifest in {archive_path} must be a JSON object.")
     return manifest
+
+
+def load_manifest(path: str | Path | io.BytesIO | bytes) -> dict[str, Any]:
+    """Read the manifest of an archive without rebuilding the model."""
+    target_path = Path(path) if isinstance(path, (str, Path)) else "<in-memory>"
+    with _open_archive(path) as archive:
+        return _read_manifest_from_archive(archive, target_path)
 
 
 def inspect_archive(path: str | Path) -> dict[str, Any]:
@@ -107,14 +121,19 @@ def inspect_archive(path: str | Path) -> dict[str, Any]:
     }
 
 
-def load(path: str | Path, *, model: Module | None = None, strict: bool = True) -> Module:
+def load(
+    path: str | Path | io.BytesIO | bytes,
+    *,
+    model: Module | None = None,
+    strict: bool = True,
+) -> Module:
     """Load a model from an ``.evo`` archive.
 
     The architecture is rebuilt from registered class names; the file is never
     unpickled and no code from it is executed.
 
     Args:
-        path: Archive written by :func:`everyo.serialization.save.save`.
+        path: Archive written by :func:`everyo.serialization.save.save` or in-memory archive.
         model: Optional pre-built model to load the parameters into.  When
             given, the stored architecture is ignored.
         strict: Require the parameter names to match the model exactly.
@@ -134,18 +153,18 @@ def load(path: str | Path, *, model: Module | None = None, strict: bool = True) 
         >>> type(eo.load(target)).__name__
         'Sequential'
     """
-    archive_path = Path(path)
-    manifest = load_manifest(archive_path)
+    archive_path = Path(path) if isinstance(path, (str, Path)) else Path("<in-memory>")
+    with _open_archive(path) as archive:
+        manifest = _read_manifest_from_archive(archive, archive_path)
 
-    stored_version = int(manifest.get("format_version", 0))
-    if stored_version > FORMAT_VERSION:
-        raise EveryOSerializationError(
-            f"{archive_path} uses model format version {stored_version}, but "
-            f"this EveryO release understands up to version {FORMAT_VERSION}. "
-            "Upgrade EveryO to load this file."
-        )
+        stored_version = int(manifest.get("format_version", 0))
+        if stored_version > FORMAT_VERSION:
+            raise EveryOSerializationError(
+                f"{archive_path} uses model format version {stored_version}, but "
+                f"this EveryO release understands up to version {FORMAT_VERSION}. "
+                "Upgrade EveryO to load this file."
+            )
 
-    with _open_archive(archive_path) as archive:
         if PARAMETERS_NAME not in archive.namelist():
             raise EveryOSerializationError(f"{archive_path} does not contain {PARAMETERS_NAME}.")
         payload = _bounded_member(archive, PARAMETERS_NAME, MAX_PARAMETERS_BYTES)

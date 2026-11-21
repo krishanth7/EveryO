@@ -466,13 +466,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             base_data = json.loads(base_path.read_text(encoding="utf-8"))
             comparison = evaluate_performance_regression(result_data, base_data)
             result_data["regression_comparison"] = comparison
-            if not comparison["passed"]:
+            if comparison.get("failure_count", 0) > 0:
                 exit_code = 1
         else:
             print(
                 f"Warning: Baseline file {base_path} not found; skipping comparison.",
                 file=sys.stderr,
             )
+            result_data["regression_comparison"] = {
+                "status": "MISSING_BASELINE",
+                "passed": None,
+                "is_compatible": False,
+                "notice": f"Baseline file {base_path} not found.",
+                "failure_count": 0,
+                "warning_count": 0,
+                "incomparable_count": 0,
+                "missing_baseline_count": len(result_data.get("benchmarks", {})),
+            }
 
     # Output handling
     if args.output:
@@ -536,13 +546,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if "regression_comparison" in result_data:
             comp = result_data["regression_comparison"]
+            status_label = comp.get("status", "PASS" if comp.get("passed") else "FAIL")
             print(
-                f"\nRegression Comparison: {'PASS' if comp['passed'] else 'FAIL'} ({comp['warning_count']} warnings, {comp['failure_count']} failures)"
+                f"\nRegression Comparison: {status_label} "
+                f"({comp.get('warning_count', 0)} warnings, {comp.get('failure_count', 0)} failures, {comp.get('incomparable_count', 0)} incomparable)"
             )
-            for f in comp["failures"]:
+            for f in comp.get("failures", []):
                 print(f"  [FAIL] {f}")
-            for w in comp["warnings"]:
+            for w in comp.get("warnings", []):
                 print(f"  [WARN] {w}")
+            if comp.get("status") == "INCOMPARABLE":
+                for diff in comp.get("environment_differences", []):
+                    print(f"  [INCOMPARABLE] {diff}")
+                print(f"  Notice: {comp.get('notice', 'Compatible baseline required.')}")
+            elif comp.get("status") == "MISSING_BASELINE":
+                print(f"  [MISSING_BASELINE] {comp.get('notice', 'No baseline available.')}")
         print("==============================================================================\n")
 
     return exit_code

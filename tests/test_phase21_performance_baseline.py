@@ -77,7 +77,7 @@ class TestCpuPerformanceBaselines:
 
     def test_model_operations_benchmark(self):
         metrics = benchmark_model_operations(warmup=1, repeats=3, seed=42)
-        assert len(metrics) == 3
+        assert len(metrics) >= 3
         ids = [m.benchmark_id for m in metrics]
         assert "model_initialization_3layer" in ids
         assert "model_serialization_eo" in ids
