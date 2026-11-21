@@ -36,6 +36,16 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Exclude optional extras (e.g. tensorflow, onnx).",
     )
+    parser.add_argument(
+        "--direct-only",
+        action="store_true",
+        help="Exclude transitive dependencies and only record direct dependencies.",
+    )
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="Produce deterministic timestamps and UUIDs for reproducible builds.",
+    )
     return parser.parse_args(args)
 
 
@@ -48,6 +58,8 @@ def main(argv: list[str] | None = None) -> int:
             format=args.format,
             output_path=args.output,
             include_optional=not args.no_optional,
+            include_transitive=not args.direct_only,
+            deterministic=args.deterministic,
         )
         if args.output is None:
             print(json.dumps(sbom_data, indent=2, sort_keys=True))

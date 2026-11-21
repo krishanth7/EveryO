@@ -43,6 +43,7 @@ tensorflow = ["tensorflow>=2.12"]
 yaml = ["PyYAML>=6.0"]
 onnx = ["onnx>=1.15", "onnxruntime>=1.17"]
 signing = ["cryptography>=42"]
+security = ["pip-audit>=2.7.0", "cryptography>=42"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
@@ -50,6 +51,7 @@ dev = [
     # unpinned range makes `ruff format --check` pass locally and fail in CI.
     "ruff==0.17.5",
     "PyYAML>=6.0",
+    "pip-audit>=2.7.0",
 ]
 cuda = ["pybind11>=2.11"]
 

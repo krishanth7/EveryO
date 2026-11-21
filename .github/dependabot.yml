@@ -1,23 +1,33 @@
 version: 2
 updates:
-  - package-ecosystem: pip
-    directory: /
+  - package-ecosystem: "pip"
+    directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
+    groups:
+      dev-dependencies:
+        patterns:
+          - "pytest*"
+          - "ruff"
+          - "pip-audit"
+      core-dependencies:
+        patterns:
+          - "numpy"
+          - "matplotlib"
     commit-message:
-      prefix: deps
+      prefix: "deps"
+      include: "scope"
 
-  - package-ecosystem: github-actions
-    directory: /
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
     commit-message:
-      prefix: ci
+      prefix: "ci"
+      include: "scope"

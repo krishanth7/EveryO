@@ -14,14 +14,15 @@ permissions:
 
 jobs:
   security-audit:
-    name: Dependency Audit & SBOM Verification
+    name: Dependency Audit, Vulnerability Policy & SBOM Verification
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
         with:
           python-version: "3.12"
           cache: pip
@@ -29,7 +30,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,signing]"
+          python -m pip install -e ".[dev,signing,security]"
+
+      - name: Run dependency vulnerability audit
+        run: python scripts/run_vulnerability_audit.py --severity-threshold high --output vulnerability-report.json
 
       - name: Generate CycloneDX SBOM
         run: python scripts/generate_sbom.py --format cyclonedx --output cyclonedx-sbom.json
@@ -38,4 +42,15 @@ jobs:
         run: python scripts/generate_sbom.py --format spdx --output spdx-sbom.json
 
       - name: Run security qualification test suite
-        run: python -m pytest tests/test_production_security_qualification.py -q
+        run: python -m pytest tests/test_production_security_qualification.py tests/test_dependency_security.py tests/test_sbom_qualification.py -q
+
+      - name: Upload security and supply-chain artifacts
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1  # v4.6.1
+        with:
+          name: security-supply-chain-reports
+          path: |
+            vulnerability-report.json
+            cyclonedx-sbom.json
+            spdx-sbom.json
+          retention-days: 90

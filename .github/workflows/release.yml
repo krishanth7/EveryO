@@ -1,0 +1,149 @@
+name: Release & Provenance Attestation
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Explicitly authorize package publication to PyPI"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-release-metadata:
+    name: Validate Release Version & Metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Verify release version consistency
+        run: |
+          python -c "
+          import re, tomllib
+          from pathlib import Path
+          from everyo.version import __version__
+          from everyo.governance import validate_release_version
+
+          validate_release_version(__version__)
+
+          with open('pyproject.toml', 'rb') as f:
+              pyproj = tomllib.load(f)
+          pyproj_ver = pyproj['project']['version']
+          assert __version__ == pyproj_ver, f'Version mismatch: everyo.version={__version__} vs pyproject.toml={pyproj_ver}'
+
+          ref = '${{ github.ref }}'
+          if ref.startswith('refs/tags/v'):
+              tag_ver = ref[len('refs/tags/v'):]
+              assert tag_ver == __version__, f'Tag mismatch: tag={tag_ver} vs package={__version__}'
+          print(f'Release version validated successfully: {__version__}')
+          "
+
+  security-audit-and-tests:
+    name: Pre-Release Security & Test Qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,signing,security]"
+
+      - name: Dependency vulnerability scan
+        run: python scripts/run_vulnerability_audit.py --severity-threshold high --output release-vuln-report.json
+
+      - name: Run security test suite
+        run: python -m pytest tests/test_production_security_qualification.py tests/test_dependency_security.py tests/test_sbom_qualification.py -q
+
+  build-and-attest:
+    name: Build Packages, Checksums & Attestation
+    needs: [validate-release-metadata, security-audit-and-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build and packaging tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Check package distribution archives
+        run: python -m twine check dist/*
+
+      - name: Generate SHA-256 checksum manifest
+        run: |
+          python -c "
+          from pathlib import Path
+          from everyo.artifact_signing import generate_checksum_manifest, verify_checksum_manifest
+          artifacts = list(Path('dist').glob('*'))
+          assert len(artifacts) >= 2, 'Expected at least wheel and sdist'
+          manifest = generate_checksum_manifest(artifacts, output_path='dist/SHA256SUMS.txt')
+          assert verify_checksum_manifest('dist/SHA256SUMS.txt')
+          print('SHA-256 Checksum manifest generated and verified successfully:')
+          for k, v in manifest.items():
+              print(f'  {v}  {k}')
+          "
+
+      - name: Generate CycloneDX and SPDX SBOMs for release
+        run: |
+          python scripts/generate_sbom.py --format cyclonedx --output dist/cyclonedx-sbom.json --deterministic
+          python scripts/generate_sbom.py --format spdx --output dist/spdx-sbom.json --deterministic
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@c074443f1a5fb4a482973336338ab362d2e429b6  # v2.2.3
+        with:
+          subject-path: "dist/*"
+
+      - name: Upload release distribution bundle
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1  # v4.6.1
+        with:
+          name: release-distribution-bundle
+          path: dist/*
+          retention-days: 90
+
+  publish-gated:
+    name: Publish Release (Gated)
+    needs: [build-and-attest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Publishing is safely disabled by default and requires explicit authorization and environment approval
+    if: false
+    steps:
+      - name: Publish confirmation
+        run: echo "Production publishing is gated and requires separate explicit authorization."
