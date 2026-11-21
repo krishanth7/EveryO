@@ -102,5 +102,7 @@ class IntelBackend(HardwareBackend):
 
     def describe(self) -> dict[str, Any]:
         base = super().describe()
-        base["note"] = "Intel backend: device detection implemented; compute operations not yet implemented."
+        base["note"] = (
+            "Intel backend: device detection implemented; compute operations not yet implemented."
+        )
         return base

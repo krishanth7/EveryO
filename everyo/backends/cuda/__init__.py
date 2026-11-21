@@ -104,9 +104,7 @@ class CudaHardwareBackend(HardwareBackend):
 
         kernel = interface.get_kernel(operation)
         if kernel is None:
-            raise NotImplementedError(
-                f"CUDA backend does not implement operation '{operation}'."
-            )
+            raise NotImplementedError(f"CUDA backend does not implement operation '{operation}'.")
         import numpy as np
 
         return np.asarray(kernel(*args, strict=True))

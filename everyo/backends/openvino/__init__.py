@@ -39,6 +39,7 @@ class OpenVinoBackend(HardwareBackend):
     def is_available(self) -> bool:
         try:
             import openvino  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -57,6 +58,7 @@ class OpenVinoBackend(HardwareBackend):
         devices: list[DeviceInfo] = []
         try:
             import openvino as ov
+
             core = ov.Core()
             for dev_name in core.available_devices:
                 devices.append(

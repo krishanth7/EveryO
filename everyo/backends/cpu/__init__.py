@@ -68,9 +68,7 @@ class CpuBackend(HardwareBackend):
     def get_capabilities(self) -> BackendCapabilities:
         return BackendCapabilities(
             supported_operations=frozenset(STANDARD_OPERATIONS),
-            supported_dtypes=frozenset(
-                {"float32", "float64", "int32", "int64", "bool"}
-            ),
+            supported_dtypes=frozenset({"float32", "float64", "int32", "int64", "bool"}),
             supports_autograd=True,
             supports_training=True,
             supports_inference=True,
@@ -79,9 +77,7 @@ class CpuBackend(HardwareBackend):
     def execute(self, operation: str, *args: Any, **kwargs: Any) -> Any:
         fn = getattr(numpy_backend, operation, None)
         if fn is None:
-            raise NotImplementedError(
-                f"CPU backend does not implement operation '{operation}'."
-            )
+            raise NotImplementedError(f"CPU backend does not implement operation '{operation}'.")
         return np.asarray(fn(*args))
 
     def allocate(self, shape: tuple[int, ...], dtype: str = "float32") -> np.ndarray:

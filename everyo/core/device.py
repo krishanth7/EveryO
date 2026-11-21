@@ -185,7 +185,7 @@ def _auto_select_device() -> Device:
 
     # Then try other operational accelerators through the registry.
     try:
-        from everyo.backends.registry import get_available_backends, _PRIORITY
+        from everyo.backends.registry import _PRIORITY, get_available_backends
 
         candidates = sorted(
             get_available_backends().values(),

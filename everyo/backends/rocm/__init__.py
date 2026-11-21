@@ -60,8 +60,7 @@ class RocmBackend(HardwareBackend):
         # ROCm is Linux-primary.
         if platform.system() not in ("Linux",):
             _UNAVAILABLE_REASON = (
-                f"ROCm is not supported on {platform.system()}. "
-                "ROCm requires Linux."
+                f"ROCm is not supported on {platform.system()}. ROCm requires Linux."
             )
             return BackendStatus.UNAVAILABLE
 
@@ -102,7 +101,7 @@ class RocmBackend(HardwareBackend):
             )
             if result.returncode == 0:
                 # Parse output for GPU names.
-                for i, line in enumerate(result.stdout.strip().split("\n")):
+                for line in result.stdout.strip().split("\n"):
                     line = line.strip()
                     if line and not line.startswith("=") and "GPU" in line.upper():
                         devices.append(
@@ -139,5 +138,7 @@ class RocmBackend(HardwareBackend):
 
     def describe(self) -> dict[str, Any]:
         base = super().describe()
-        base["note"] = "ROCm backend: device detection implemented; compute operations not yet implemented."
+        base["note"] = (
+            "ROCm backend: device detection implemented; compute operations not yet implemented."
+        )
         return base

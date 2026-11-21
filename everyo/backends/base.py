@@ -193,21 +193,42 @@ class HardwareBackend(ABC):
 
     def transfer_to_device(self, data: Any, index: int = 0) -> Any:
         """Copy host data to this backend's device."""
-        raise NotImplementedError(
-            f"Backend '{self.name}' does not implement transfer_to_device()."
-        )
+        raise NotImplementedError(f"Backend '{self.name}' does not implement transfer_to_device().")
 
     def transfer_to_host(self, device_data: Any) -> Any:
         """Copy device data back to host (NumPy array)."""
-        raise NotImplementedError(
-            f"Backend '{self.name}' does not implement transfer_to_host()."
-        )
+        raise NotImplementedError(f"Backend '{self.name}' does not implement transfer_to_host().")
 
     def synchronize(self, index: int = 0) -> None:
-        """Block until all pending operations on the device complete."""
+        """Block until all pending operations on the device complete.
+
+        This is an explicit no-op by default for synchronous backends (such as CPU)
+        where operations complete immediately upon return. Asynchronous backends
+        (such as CUDA) should override this method to wait on streams or queues.
+
+        Args:
+            index: The device ordinal to synchronize. Defaults to 0.
+
+        Returns:
+            None
+        """
+        return
 
     def release(self, device_data: Any) -> None:
-        """Release a device buffer."""
+        """Release a device buffer or handle.
+
+        This is an explicit no-op by default for backends whose allocations are
+        automatically reclaimed by Python's reference counting or garbage collection.
+        Backends managing unmanaged native allocations should override this to free
+        device memory immediately.
+
+        Args:
+            device_data: The backend-specific device buffer or handle to release.
+
+        Returns:
+            None
+        """
+        return
 
     def benchmark(self, operation: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
         """Run a micro-benchmark of ``operation`` and return timing data."""

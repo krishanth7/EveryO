@@ -76,12 +76,8 @@ class BackendManager:
                 if operation is None or backend.supports_operation(operation):
                     return backend
                 # Backend is available but does not support the operation.
-                reason = (
-                    f"Backend '{requested}' does not support operation '{operation}'."
-                )
-                self._fallback_log.append(
-                    {"requested": requested, "reason": reason}
-                )
+                reason = f"Backend '{requested}' does not support operation '{operation}'."
+                self._fallback_log.append({"requested": requested, "reason": reason})
                 if strict:
                     raise RuntimeError(reason)
             else:
@@ -90,9 +86,7 @@ class BackendManager:
                     + (f": {backend.unavailable_reason()}" if backend else "")
                     + "."
                 )
-                self._fallback_log.append(
-                    {"requested": requested, "reason": reason}
-                )
+                self._fallback_log.append({"requested": requested, "reason": reason})
                 if strict:
                     raise RuntimeError(reason)
             _LOGGER.info("Backend '%s' unavailable, trying fallback.", requested)
@@ -123,14 +117,10 @@ class BackendManager:
         # Last resort: CPU should always be in the registry.
         cpu = get_backend("cpu")
         if cpu is not None and cpu.is_available():
-            self._fallback_log.append(
-                {"fallback": "cpu", "reason": "No accelerator available."}
-            )
+            self._fallback_log.append({"fallback": "cpu", "reason": "No accelerator available."})
             return cpu
 
-        raise RuntimeError(
-            "No backend is available.  Ensure at least NumPy is installed."
-        )
+        raise RuntimeError("No backend is available.  Ensure at least NumPy is installed.")
 
     @property
     def fallback_log(self) -> list[dict[str, Any]]:

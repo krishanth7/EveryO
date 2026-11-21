@@ -43,7 +43,9 @@ class SyclBackend(HardwareBackend):
     def unavailable_reason(self) -> str | None:
         if self.is_available():
             return None
-        return "SYCL runtime not detected.  Install a SYCL implementation such as Intel oneAPI DPC++."
+        return (
+            "SYCL runtime not detected.  Install a SYCL implementation such as Intel oneAPI DPC++."
+        )
 
     def status(self) -> BackendStatus:
         return BackendStatus.AVAILABLE if self.is_available() else BackendStatus.RUNTIME_MISSING
@@ -51,6 +53,7 @@ class SyclBackend(HardwareBackend):
     def detect_devices(self) -> list[DeviceInfo]:
         # Shares detection with the Intel backend.
         from everyo.backends.intel import IntelBackend
+
         intel = IntelBackend()
         return [
             DeviceInfo(

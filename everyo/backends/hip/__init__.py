@@ -84,5 +84,7 @@ class HipBackend(HardwareBackend):
 
     def describe(self) -> dict[str, Any]:
         base = super().describe()
-        base["note"] = "HIP backend: device detection implemented; compute operations not yet implemented."
+        base["note"] = (
+            "HIP backend: device detection implemented; compute operations not yet implemented."
+        )
         return base

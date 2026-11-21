@@ -15,6 +15,13 @@ from __future__ import annotations
 from typing import Any
 
 from everyo.backends import numpy_backend
+from everyo.backends.base import (
+    BackendCapabilities,
+    BackendStatus,
+    DeviceInfo,
+    DeviceType,
+    HardwareBackend,
+)
 from everyo.backends.operator_backend import (
     CudaOperatorBackend,
     DispatchResult,
@@ -22,15 +29,6 @@ from everyo.backends.operator_backend import (
     OperatorBackend,
     backend_for,
     dispatch,
-)
-
-# --- New multi-backend registry ---
-from everyo.backends.base import (
-    BackendCapabilities,
-    BackendStatus,
-    DeviceInfo,
-    DeviceType,
-    HardwareBackend,
 )
 from everyo.backends.registry import (
     detect_all,
@@ -124,6 +122,7 @@ def describe_backends() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Auto-register built-in backends on first import.
 # ---------------------------------------------------------------------------
+
 
 def _register_builtin_backends() -> None:
     """Import and register all built-in hardware backends."""

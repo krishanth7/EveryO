@@ -11,8 +11,6 @@ import os
 import platform
 from typing import Any
 
-from everyo.backends.base import DeviceInfo
-
 __all__ = [
     "detect_cpu_info",
     "detect_all_hardware",
