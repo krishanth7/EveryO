@@ -39,67 +39,85 @@ This is an administrative repository configuration conflict on GitHub, not a Pyt
 
 | Aspect | Before Fix | After Fix |
 |---|---|---|
+| **Workflow Name** | `CodeQL` | `CodeQL Advanced` |
 | **CodeQL Action Version** | `github/codeql-action/*@v3` | `github/codeql-action/*@v4` |
 | **Node.js Runtime** | Node.js 20 | Node.js 24 |
 | **Manual Trigger** | None (push, pull_request, schedule only) | `workflow_dispatch` added to enable on-demand testing |
-| **Authoritative Header** | None | Explicit maintainer documentation in workflow header |
-| **Language Target** | `python` (matrix) | `python` (matrix) (Preserved) |
-| **Query Suite** | `+security-and-quality` | `+security-and-quality` (Preserved) |
-| **Least-Privilege Permissions** | `actions: read`, `contents: read`, `security-events: write` | `actions: read`, `contents: read`, `security-events: write` (Preserved) |
-| **SARIF Upload Category** | `/language:${{matrix.language}}` | `/language:${{matrix.language}}` (Preserved) |
+| **Language Matrix** | `python` only | Multi-language: `actions`, `c-cpp`, `python` (`build-mode: none`) |
+| **Permissions** | `actions: read`, `contents: read`, `security-events: write` | `security-events: write`, `packages: read`, `actions: read`, `contents: read` |
+| **SARIF Upload Category** | `/language:${{matrix.language}}` | `/language:${{matrix.language}}` |
 
 ### 2.1 Complete Authoritative Workflow (`.github/workflows/codeql.yml`)
 
 ```yaml
-name: CodeQL
-
-# Authoritative Advanced CodeQL Configuration for EveryO.
-# IMPORTANT: In GitHub repository Settings -> Security -> Code security -> CodeQL analysis,
-# the "Default setup" MUST be disabled to prevent the error:
-# "CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled".
+# For most projects, this workflow file will not need changing; you simply need
+# to commit it to your repository.
+#
+# You may wish to alter this file to override the set of languages analyzed,
+# or to provide custom queries or build logic.
+#
+# ******** NOTE ********
+# We have attempted to detect the languages in your repository. Please check
+# the `language` matrix defined below to confirm you have the correct set of
+# supported CodeQL languages.
+#
+name: "CodeQL Advanced"
 
 on:
   push:
-    branches: [main]
+    branches: [ "main" ]
   pull_request:
-    branches: [main]
+    branches: [ "main" ]
   schedule:
-    - cron: '0 6 * * 1'
+    - cron: '31 2 * * 5'
   workflow_dispatch:
-
-permissions:
-  actions: read
-  contents: read
-  security-events: write
 
 jobs:
   analyze:
-    name: CodeQL Static Analysis
-    runs-on: ubuntu-latest
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
     strategy:
       fail-fast: false
       matrix:
-        language: ['python']
+        include:
+        - language: actions
+          build-mode: none
+        - language: c-cpp
+          build-mode: none
+        - language: python
+          build-mode: none
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+    - name: Checkout repository
+      uses: actions/checkout@v7
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-          queries: +security-and-quality
+    - name: Run manual build steps
+      if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        echo 'If you are using a "manual" build mode for one or more of the' \
+          'languages you are analyzing, replace this with the commands to build' \
+          'your code, for example:'
+        echo '  make bootstrap'
+        echo '  make release'
+        exit 1
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
-        with:
-          category: "/language:${{matrix.language}}"
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: "/language:${{matrix.language}}"
 ```
 
 ---
