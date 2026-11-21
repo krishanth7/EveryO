@@ -44,9 +44,14 @@ def _detect_memory_windows() -> tuple[int, int]:
 
         stat = _MEMORYSTATUSEX()
         stat.dwLength = ctypes.sizeof(stat)
-        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
-            total = int(stat.ullTotalPhys)
-            free = int(stat.ullAvailPhys)
+        windll = getattr(ctypes, "windll", None)
+        if windll is not None and hasattr(windll, "kernel32"):
+            kernel32 = windll.kernel32
+            if hasattr(kernel32, "GlobalMemoryStatusEx") and kernel32.GlobalMemoryStatusEx(
+                ctypes.byref(stat)
+            ):
+                total = int(stat.ullTotalPhys)
+                free = int(stat.ullAvailPhys)
     except Exception as exc:
         _LOGGER.debug("Windows GlobalMemoryStatusEx failed: %s", exc)
     return total, free

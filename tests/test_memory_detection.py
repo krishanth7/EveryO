@@ -11,13 +11,16 @@ Tests:
 - Malformed / corrupted command output.
 - Zero or unavailable memory handling (no fabricated numbers).
 - Invariant guarantees: used = total - free, never negative.
-- Windows GlobalMemoryStatusEx regression.
+- Windows GlobalMemoryStatusEx cross-platform test double (runs on Linux, macOS, Windows).
+- Windows API failure and missing windll handling.
 - Linux sysconf and /proc/meminfo regression.
+- Unsupported platform handling.
 """
 
 from __future__ import annotations
 
 import subprocess
+import types
 from unittest.mock import mock_open, patch
 
 from everyo.backends.detection import (
@@ -307,22 +310,27 @@ Cached:          2000000 kB
 
 
 class TestWindowsMemoryDetection:
-    """Verifies Windows ctypes GlobalMemoryStatusEx detection."""
+    """Verifies Windows ctypes GlobalMemoryStatusEx detection across all CI OSes."""
 
-    def test_windows_global_memory_status_ex(self):
-        """Simulates Windows GlobalMemoryStatusEx via ctypes mock."""
+    def test_windows_global_memory_status_ex_success(self):
+        """Simulates Windows GlobalMemoryStatusEx using a controlled fake Windows API double.
+
+        This test runs portably across Linux, macOS, and Windows.
+        """
+
+        def fake_api(byref_stat):
+            stat = byref_stat._obj
+            stat.ullTotalPhys = 16000000000
+            stat.ullAvailPhys = 6000000000
+            return 1
+
+        fake_kernel32 = types.SimpleNamespace(GlobalMemoryStatusEx=fake_api)
+        fake_windll = types.SimpleNamespace(kernel32=fake_kernel32)
+
         with (
             patch("platform.system", return_value="Windows"),
-            patch("ctypes.windll.kernel32.GlobalMemoryStatusEx") as mock_api,
+            patch("ctypes.windll", fake_windll, create=True),
         ):
-
-            def side_effect(byref_stat):
-                stat = byref_stat._obj
-                stat.ullTotalPhys = 16000000000
-                stat.ullAvailPhys = 6000000000
-                return 1
-
-            mock_api.side_effect = side_effect
             total, free = _detect_memory_windows()
             assert total == 16000000000
             assert free == 6000000000
@@ -331,3 +339,87 @@ class TestWindowsMemoryDetection:
             assert mem["total_bytes"] == 16000000000
             assert mem["free_bytes"] == 6000000000
             assert mem["used_bytes"] == 10000000000
+
+    def test_windows_api_failure_returns_zero(self):
+        """When GlobalMemoryStatusEx returns 0 (failure), returns honest zeros."""
+
+        def fake_api(byref_stat):
+            return 0  # Win32 failure return code
+
+        fake_kernel32 = types.SimpleNamespace(GlobalMemoryStatusEx=fake_api)
+        fake_windll = types.SimpleNamespace(kernel32=fake_kernel32)
+
+        with (
+            patch("platform.system", return_value="Windows"),
+            patch("ctypes.windll", fake_windll, create=True),
+        ):
+            total, free = _detect_memory_windows()
+            assert total == 0
+            assert free == 0
+
+            mem = detect_system_memory()
+            assert mem["total_bytes"] == 0
+            assert mem["free_bytes"] == 0
+            assert mem["used_bytes"] == 0
+
+    def test_windows_missing_windll_returns_zero(self):
+        """When ctypes.windll is absent or None, returns honest zeros without crashing."""
+        with (
+            patch("platform.system", return_value="Windows"),
+            patch("ctypes.windll", None, create=True),
+        ):
+            total, free = _detect_memory_windows()
+            assert total == 0
+            assert free == 0
+
+            mem = detect_system_memory()
+            assert mem["total_bytes"] == 0
+            assert mem["free_bytes"] == 0
+            assert mem["used_bytes"] == 0
+
+    def test_windows_api_exception_handled_safely(self):
+        """When GlobalMemoryStatusEx raises an exception, handles safely without crashing."""
+
+        def fake_api(byref_stat):
+            raise OSError("Win32 access violation")
+
+        fake_kernel32 = types.SimpleNamespace(GlobalMemoryStatusEx=fake_api)
+        fake_windll = types.SimpleNamespace(kernel32=fake_kernel32)
+
+        with (
+            patch("platform.system", return_value="Windows"),
+            patch("ctypes.windll", fake_windll, create=True),
+        ):
+            total, free = _detect_memory_windows()
+            assert total == 0
+            assert free == 0
+
+            mem = detect_system_memory()
+            assert mem["total_bytes"] == 0
+            assert mem["free_bytes"] == 0
+            assert mem["used_bytes"] == 0
+
+
+class TestUnsupportedPlatformMemoryDetection:
+    """Verifies memory detection behavior on non-mainstream or unsupported platforms."""
+
+    def test_unsupported_platform_does_not_crash(self):
+        """Unrecognized operating systems return valid schema and non-negative integers."""
+        with (
+            patch("platform.system", return_value="FreeBSD"),
+            patch("os.sysconf", side_effect=ValueError, create=True),
+        ):
+            mem = detect_system_memory()
+            assert isinstance(mem, dict)
+            assert mem["total_bytes"] >= 0
+            assert mem["free_bytes"] >= 0
+            assert mem["used_bytes"] >= 0
+            assert mem["total_bytes"] == mem["free_bytes"] + mem["used_bytes"]
+
+    def test_memory_values_non_negative_and_consistent(self):
+        """Physical memory detection across all calls enforces non-negative arithmetic consistency."""
+        mem = detect_system_memory()
+        assert mem["total_bytes"] >= 0
+        assert mem["free_bytes"] >= 0
+        assert mem["used_bytes"] >= 0
+        assert mem["total_bytes"] == mem["free_bytes"] + mem["used_bytes"]
