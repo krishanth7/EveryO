@@ -10,3 +10,4 @@ cryptography>=42.0.0,<51.0.0
 pybind11>=2.11,<3.0.0
 build>=1.0.0,<2.0.0
 twine>=5.0.0,<8.0.0
+tomli>=2.0.0,<3.0.0; python_version < "3.11"

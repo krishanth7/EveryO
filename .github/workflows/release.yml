@@ -32,7 +32,11 @@ jobs:
       - name: Verify release version consistency
         run: |
           python -c "
-          import re, tomllib
+          import re
+          try:
+              import tomllib
+          except ModuleNotFoundError:
+              import tomli as tomllib
           from pathlib import Path
           from everyo.version import __version__
           from everyo.governance import validate_release_version

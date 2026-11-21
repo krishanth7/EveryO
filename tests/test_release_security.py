@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
-import tomllib
+
+try:
+    import tomllib
+except (ModuleNotFoundError, ImportError):
+    import tomli as tomllib  # type: ignore[no-redef]
 
 from everyo.artifact_signing import (
     generate_checksum_manifest,
@@ -21,6 +26,19 @@ def test_version_consistency():
     pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
     with pyproject_path.open("rb") as f:
         pyproj = tomllib.load(f)
+    declared_ver = pyproj["project"]["version"]
+    assert __version__ == declared_ver, f"Version mismatch: {__version__} vs {declared_ver}"
+
+
+def test_version_consistency_with_tomli_fallback(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setitem(sys.modules, "tomllib", None)
+    try:
+        import tomli
+    except ImportError:
+        pytest.skip("tomli not installed")
+    pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    with pyproject_path.open("rb") as f:
+        pyproj = tomli.load(f)
     declared_ver = pyproj["project"]["version"]
     assert __version__ == declared_ver, f"Version mismatch: {__version__} vs {declared_ver}"
 

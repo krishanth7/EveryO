@@ -52,6 +52,7 @@ dev = [
     "ruff==0.17.5",
     "PyYAML>=6.0",
     "pip-audit>=2.7.0",
+    'tomli>=2.0; python_version < "3.11"',
 ]
 cuda = ["pybind11>=2.11"]
 
