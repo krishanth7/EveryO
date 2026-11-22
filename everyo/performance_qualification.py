@@ -1484,8 +1484,30 @@ def validate_soak_report(report: dict[str, Any]) -> tuple[bool, list[str]]:
         if key not in report:
             errors.append(f"Missing required key: '{key}'")
 
-    if report.get("status") not in ("PASS", "FAIL", "INTERRUPTED", "INVALID"):
-        errors.append(f"Invalid status: '{report.get('status')}'")
+    status = report.get("status")
+    if status not in (
+        "PASS",
+        "FAIL",
+        "INTERRUPTED",
+        "INVALID",
+        "NOT RUN",
+        "INCONCLUSIVE",
+    ):
+        errors.append(f"Invalid status: '{status}'")
+
+    if status == "NOT RUN":
+        required_not_run_keys = [
+            "status",
+            "profile",
+            "git_commit_sha",
+            "requested_duration_seconds",
+            "actual_duration_seconds",
+            "notice",
+        ]
+        for key in required_not_run_keys:
+            if key not in report:
+                errors.append(f"Missing required key: '{key}'")
+        return len(errors) == 0, errors
 
     if not isinstance(report.get("samples"), list):
         errors.append("Field 'samples' must be a list")
@@ -1560,6 +1582,87 @@ def _build_invalid_soak_report(
         "passed_stability": False,
         "environment": env,
     }
+
+
+def assess_memory_stability(
+    samples: Sequence[SoakSample | dict[str, Any]],
+    *,
+    total_elapsed: float,
+    init_rss: int,
+    final_rss: int,
+    trace_python: bool = False,
+) -> tuple[str, str, bool]:
+    """Assess memory stability from soak telemetry samples.
+
+    Distinguishes initial allocator expansion (warm-up) from continuing memory leaks,
+    validates Python allocations independently, and marks insufficient evidence as INCONCLUSIVE.
+
+    Returns:
+        tuple[rss_trend, memory_assessment, is_unbounded_leak]
+    """
+    if total_elapsed < 60.0 or len(samples) < 5:
+        # Insufficient duration or sample count to confirm absence of slow leaks
+        return "INCONCLUSIVE", "INCONCLUSIVE", False
+
+    rss_values: list[int] = []
+    py_values: list[int] = []
+    for s in samples:
+        rss = s.rss_bytes if isinstance(s, SoakSample) else s.get("rss_bytes")
+        if isinstance(rss, int):
+            rss_values.append(rss)
+        py = (
+            s.python_allocated_bytes
+            if isinstance(s, SoakSample)
+            else s.get("python_allocated_bytes")
+        )
+        if isinstance(py, int):
+            py_values.append(py)
+
+    rss_growth_bytes = final_rss - init_rss
+    rss_growth_pct = (rss_growth_bytes / max(init_rss, 1)) * 100.0 if init_rss > 0 else 0.0
+
+    warm_rss = rss_values[1] if len(rss_values) > 1 else init_rss
+    steady_state_growth_pct = (
+        ((final_rss - warm_rss) / max(warm_rss, 1)) * 100.0 if warm_rss > 0 else 0.0
+    )
+
+    first_half = rss_values[1 : max(2, len(rss_values) // 2)]
+    second_half = rss_values[max(2, len(rss_values) // 2) :]
+    mean_first = statistics.mean(first_half) if first_half else init_rss
+    mean_second = statistics.mean(second_half) if second_half else final_rss
+    second_half_growth_pct = (
+        ((mean_second - mean_first) / max(mean_first, 1)) * 100.0 if mean_first > 0 else 0.0
+    )
+
+    # Independent Python allocation validation
+    py_leak = False
+    if trace_python and len(py_values) >= 5:
+        first_half_py = py_values[1 : max(2, len(py_values) // 2)]
+        second_half_py = py_values[max(2, len(py_values) // 2) :]
+        py_mean_first = statistics.mean(first_half_py) if first_half_py else py_values[0]
+        py_mean_second = statistics.mean(second_half_py) if second_half_py else py_values[-1]
+        py_second_half_growth = (
+            ((py_mean_second - py_mean_first) / max(py_mean_first, 1)) * 100.0
+            if py_mean_first > 0
+            else 0.0
+        )
+        py_growth_bytes = py_values[-1] - py_values[0]
+        if py_growth_bytes > 50 * 1024 * 1024 and py_second_half_growth > 25.0:
+            py_leak = True
+
+    # Memory classification
+    if py_leak or (rss_growth_bytes > 50 * 1024 * 1024 and second_half_growth_pct > 15.0):
+        return "UNBOUNDED_GROWTH", "CONFIRMED_MEMORY_LEAK", True
+
+    if rss_growth_pct <= 5.0 or (steady_state_growth_pct <= 5.0 and second_half_growth_pct <= 5.0):
+        return "STABLE", "NO_LEAK_DETECTED", False
+
+    if steady_state_growth_pct <= 25.0 or (
+        rss_growth_bytes < 50 * 1024 * 1024 and second_half_growth_pct <= 15.0
+    ):
+        return "BOUNDED_GROWTH", "BOUNDED_ALLOCATOR_EXPANSION_NO_CONFIRMED_LEAK", False
+
+    return "UNBOUNDED_GROWTH", "CONFIRMED_MEMORY_LEAK", True
 
 
 def run_soak_test(
@@ -1743,42 +1846,13 @@ def run_soak_test(
         rss_growth_bytes = final_rss - init_rss
         rss_growth_pct = (rss_growth_bytes / max(init_rss, 1)) * 100.0 if init_rss > 0 else 0.0
 
-        warm_rss = samples[1].rss_bytes if len(samples) > 1 else init_rss
-        steady_state_growth_pct = (
-            ((final_rss - warm_rss) / max(warm_rss, 1)) * 100.0 if warm_rss > 0 else 0.0
+        rss_trend, memory_assessment, is_unbounded_leak = assess_memory_stability(
+            samples,
+            total_elapsed=total_elapsed,
+            init_rss=init_rss,
+            final_rss=final_rss,
+            trace_python=trace_python,
         )
-        mean_rss_first = (
-            statistics.mean([s.rss_bytes for s in first_half_samples])
-            if first_half_samples
-            else init_rss
-        )
-        mean_rss_second = (
-            statistics.mean([s.rss_bytes for s in second_half_samples])
-            if second_half_samples
-            else final_rss
-        )
-        second_half_growth_pct = (
-            ((mean_rss_second - mean_rss_first) / max(mean_rss_first, 1)) * 100.0
-            if mean_rss_first > 0
-            else 0.0
-        )
-
-        if rss_growth_pct <= 5.0 or (
-            steady_state_growth_pct <= 5.0 and second_half_growth_pct <= 5.0
-        ):
-            rss_trend = "STABLE"
-            memory_assessment = "NO_LEAK_DETECTED"
-            is_unbounded_leak = False
-        elif steady_state_growth_pct <= 25.0 or (
-            rss_growth_bytes < 50 * 1024 * 1024 and second_half_growth_pct <= 15.0
-        ):
-            rss_trend = "BOUNDED_GROWTH"
-            memory_assessment = "BOUNDED_ALLOCATOR_EXPANSION_NO_CONFIRMED_LEAK"
-            is_unbounded_leak = False
-        else:
-            rss_trend = "UNBOUNDED_GROWTH"
-            memory_assessment = "CONFIRMED_MEMORY_LEAK"
-            is_unbounded_leak = True
 
         # Python allocation metrics
         if trace_python or tracemalloc.is_tracing():

@@ -8,6 +8,18 @@ on:
   schedule:
     - cron: '0 6 * * 1'
   workflow_dispatch:
+    inputs:
+      qualification_profile:
+        description: 'Soak qualification profile to execute'
+        required: true
+        default: 'smoke_10s'
+        type: choice
+        options:
+          - 'smoke_10s'
+          - 'short_10m'
+          - 'medium_30m'
+          - 'extended_2h'
+          - 'endurance_8h'
 
 permissions:
   contents: read
@@ -20,7 +32,7 @@ jobs:
   performance-qualification:
     name: CPU Performance, Stress, Soak & Regression Gates
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 500
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -45,8 +57,25 @@ jobs:
       - name: Run concurrency and stress qualification
         run: python -m everyo.benchmarking --profile concurrency
 
-      - name: Run short soak stability qualification
+      - name: Run short soak smoke stability check (10s)
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.qualification_profile == 'smoke_10s'
         run: python -m everyo.benchmarking --profile soak --duration 10
+
+      - name: Run 10-minute soak stability qualification
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.qualification_profile == 'short_10m'
+        run: python -m everyo.benchmarking --profile soak --duration 600 --trace-python --output benchmarks/reports/soak_10min_telemetry.json
+
+      - name: Run 30-minute soak stability qualification
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.qualification_profile == 'medium_30m'
+        run: python -m everyo.benchmarking --profile soak --duration 1800 --trace-python --output benchmarks/reports/soak_30min_telemetry.json
+
+      - name: Run 2-hour soak stability qualification
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.qualification_profile == 'extended_2h'
+        run: python -m everyo.benchmarking --profile soak --duration 7200 --trace-python --output benchmarks/reports/soak_2hr_telemetry.json
+
+      - name: Run 8-hour endurance soak qualification
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.qualification_profile == 'endurance_8h'
+        run: python -m everyo.benchmarking --profile soak --duration 28800 --output benchmarks/reports/soak_8hr_telemetry.json
 
       - name: Run fault-recovery qualification
         run: python -m everyo.benchmarking --profile fault-recovery
@@ -56,5 +85,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: cpu-performance-benchmark-results
-          path: benchmark-results.json
+          path: |
+            benchmark-results.json
+            benchmarks/reports/*.json
           retention-days: 90

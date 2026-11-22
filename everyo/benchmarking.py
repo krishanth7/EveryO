@@ -392,6 +392,11 @@ def parse_args(argv: Sequence[str] | None = None) -> Any:
         help="Duration in seconds for soak profile (default: 30.0s).",
     )
     parser.add_argument(
+        "--trace-python",
+        action="store_true",
+        help="Enable Python heap allocation tracking via tracemalloc during soak profiling.",
+    )
+    parser.add_argument(
         "--compare-baseline",
         action="store_true",
         help="Compare execution results against baseline record.",
@@ -496,7 +501,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             exit_code = 1
     elif profile == "soak":
         result_data = run_soak_test(
-            duration_seconds=args.duration, sample_interval_seconds=max(1.0, args.duration / 15)
+            duration_seconds=args.duration,
+            sample_interval_seconds=max(1.0, args.duration / 15),
+            trace_python=args.trace_python,
         )
         if not result_data["passed_stability"]:
             exit_code = 1

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from everyo.performance_qualification import (
     SOAK_PROFILES,
+    assess_memory_stability,
     run_soak_test,
     validate_soak_report,
 )
@@ -59,10 +60,11 @@ class TestSoakQualification:
         assert is_valid is True, f"Schema validation errors: {errors}"
         assert res["python_allocation_status"] == "NOT_COLLECTED"
         assert res["python_allocated_metrics"] == "NOT_COLLECTED"
-        assert res["rss_trend"] in ("STABLE", "BOUNDED_GROWTH", "UNBOUNDED_GROWTH")
+        assert res["rss_trend"] in ("STABLE", "BOUNDED_GROWTH", "UNBOUNDED_GROWTH", "INCONCLUSIVE")
         assert res["memory_assessment"] in (
             "NO_LEAK_DETECTED",
             "BOUNDED_ALLOCATOR_EXPANSION_NO_CONFIRMED_LEAK",
+            "INCONCLUSIVE",
         )
         assert "latency_statistics" in res
         assert "mean_p95_ms" in res["latency_statistics"]
@@ -129,3 +131,58 @@ class TestSoakQualification:
         res = run_soak_test(profile="endurance", sample_interval_seconds=60.0)
         assert res["status"] == "PASS"
         assert res["duration_seconds"] >= 28800.0
+
+    def test_assess_memory_stability_classifications(self):
+        # 1. Short duration (< 60s) or few samples -> INCONCLUSIVE
+        samples_short = [
+            {"rss_bytes": 50000000, "python_allocated_bytes": 1000000} for _ in range(4)
+        ]
+        trend, assessment, is_leak = assess_memory_stability(
+            samples_short, total_elapsed=10.0, init_rss=50000000, final_rss=50000000
+        )
+        assert trend == "INCONCLUSIVE"
+        assert assessment == "INCONCLUSIVE"
+        assert is_leak is False
+
+        # 2. Stable long run (600s, 0% growth) -> STABLE / NO_LEAK_DETECTED
+        samples_stable = [
+            {"rss_bytes": 50000000, "python_allocated_bytes": 1000000} for _ in range(10)
+        ]
+        trend, assessment, is_leak = assess_memory_stability(
+            samples_stable, total_elapsed=600.0, init_rss=50000000, final_rss=50000000
+        )
+        assert trend == "STABLE"
+        assert assessment == "NO_LEAK_DETECTED"
+        assert is_leak is False
+
+        # 3. Bounded allocator expansion (warmup from 45MB to 55MB, then flat at 55MB)
+        samples_bounded = [
+            {"rss_bytes": 45000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 52000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 55000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 55000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 55100000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 55000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 55100000, "python_allocated_bytes": 1000000},
+        ]
+        trend, assessment, is_leak = assess_memory_stability(
+            samples_bounded, total_elapsed=600.0, init_rss=45000000, final_rss=55100000
+        )
+        assert trend == "BOUNDED_GROWTH"
+        assert assessment == "BOUNDED_ALLOCATOR_EXPANSION_NO_CONFIRMED_LEAK"
+        assert is_leak is False
+
+        # 4. Monotonic continuing leak (>50MB growth, second half continuing growth)
+        samples_leak = [
+            {"rss_bytes": 50000000 + i * 20000000, "python_allocated_bytes": 1000000}
+            for i in range(10)
+        ]
+        trend, assessment, is_leak = assess_memory_stability(
+            samples_leak,
+            total_elapsed=600.0,
+            init_rss=50000000,
+            final_rss=50000000 + 9 * 20000000,
+        )
+        assert trend == "UNBOUNDED_GROWTH"
+        assert assessment == "CONFIRMED_MEMORY_LEAK"
+        assert is_leak is True
