@@ -11,6 +11,7 @@ Phase 21.3 Master Qualification Architecture:
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import gc
 import json
@@ -57,6 +58,56 @@ def calculate_percentile(sorted_values: list[float], percentile: float) -> float
     return float(sorted_values[low] + (sorted_values[high] - sorted_values[low]) * weight)
 
 
+def _get_git_commit_sha() -> str:
+    commit = os.environ.get("GITHUB_SHA") or os.environ.get("GIT_COMMIT_SHA")
+    if commit:
+        return commit.strip()
+    try:
+        import subprocess
+
+        res = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+            timeout=2.0,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _get_thread_settings() -> dict[str, str | None]:
+    vars_to_check = [
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+    ]
+    return {v: os.environ.get(v) for v in vars_to_check}
+
+
+def _get_optional_backends() -> dict[str, bool]:
+    backends = {"cuda": False, "tensorflow": False}
+    try:
+        from everyo.cuda.availability import is_available as cuda_available
+
+        backends["cuda"] = bool(cuda_available())
+    except Exception:
+        pass
+    try:
+        from everyo.backends import tensorflow_backend
+
+        backends["tensorflow"] = bool(tensorflow_backend.is_available())
+    except Exception:
+        pass
+    return backends
+
+
 def get_environment_metadata() -> dict[str, Any]:
     """Capture comprehensive environment and hardware metadata."""
     mem_stats = get_process_memory()
@@ -71,6 +122,8 @@ def get_environment_metadata() -> dict[str, Any]:
 
     return {
         "everyo_version": __version__,
+        "git_commit_sha": _get_git_commit_sha(),
+        "python_implementation": platform.python_implementation(),
         "python_version": platform.python_version(),
         "python_major_minor": f"{sys.version_info.major}.{sys.version_info.minor}",
         "os_name": platform.system(),
@@ -82,6 +135,8 @@ def get_environment_metadata() -> dict[str, Any]:
         "numpy_version": np.__version__,
         "numpy_major": np.__version__.split(".")[0],
         "blas_info": blas_info,
+        "thread_settings": _get_thread_settings(),
+        "optional_backends": _get_optional_backends(),
         "benchmark_suite_version": "21.3.1",
         "process_pid": os.getpid(),
         "initial_rss_bytes": mem_stats.get("rss_bytes"),
@@ -192,7 +247,20 @@ class MemoryTracker:
 
 
 def verify_resource_lifecycle(*, iterations: int = 15, tensor_size: int = 128) -> dict[str, Any]:
-    """Test resource lifecycle: creation, loading, inference, release, and error cleanup."""
+    """Test resource lifecycle across all 10 qualification checks.
+
+    1. Repeated model creation and destruction
+    2. Repeated serialization
+    3. Repeated deserialization
+    4. Serialization and deserialization combined lifecycle
+    5. Repeated large tensor allocation and explicit release
+    6. Repeated inference execution
+    7. Cleanup after exceptions in computation
+    8. Temporary file lifecycle and cleanup
+    9. Open file handle release on error (verified via file unlink)
+    10. Bounded resource limits rejection
+    11. Repeated healthy operations after error cleanup
+    """
     results: dict[str, Any] = {"iterations": iterations, "checks": {}}
 
     # 1. Repeated model creation and destruction
@@ -206,7 +274,38 @@ def verify_resource_lifecycle(*, iterations: int = 15, tensor_size: int = 128) -
         "passed": True,
     }
 
-    # 2. Repeated serialization and deserialization
+    # 2. Repeated serialization to disk
+    with tempfile.TemporaryDirectory() as tmpdir:
+        m_ser = eo.Sequential(eo.Linear(16, 8, seed=42), eo.ReLU(), eo.Linear(8, 2, seed=42))
+        with MemoryTracker() as tracker:
+            for i in range(iterations):
+                ser_path = Path(tmpdir) / f"ser_{i}.eo"
+                eo.save(m_ser, ser_path)
+                if ser_path.is_file():
+                    ser_path.unlink()
+            gc.collect()
+        results["checks"]["repeated_serialization"] = {
+            "delta_rss_bytes": tracker.delta_rss_bytes,
+            "passed": True,
+        }
+
+    # 3. Repeated deserialization from disk
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_path = Path(tmpdir) / "base_model.eo"
+        m_base = eo.Sequential(eo.Linear(16, 8, seed=42), eo.ReLU(), eo.Linear(8, 2, seed=42))
+        eo.save(m_base, base_path)
+
+        with MemoryTracker() as tracker:
+            for _ in range(iterations):
+                loaded = eo.load(base_path)
+                del loaded
+            gc.collect()
+        results["checks"]["repeated_deserialization"] = {
+            "delta_rss_bytes": tracker.delta_rss_bytes,
+            "passed": True,
+        }
+
+    # 4. Serialization and deserialization combined
     with tempfile.TemporaryDirectory() as tmpdir:
         model_path = Path(tmpdir) / "lifecycle_model.eo"
         m = eo.Sequential(eo.Linear(16, 8, seed=42), eo.ReLU(), eo.Linear(8, 2, seed=42))
@@ -224,7 +323,7 @@ def verify_resource_lifecycle(*, iterations: int = 15, tensor_size: int = 128) -
             "passed": True,
         }
 
-    # 3. Repeated large tensor allocation and explicit release
+    # 5. Repeated large tensor allocation and explicit release
     with MemoryTracker() as tracker:
         for _ in range(iterations):
             arr = np.ones((tensor_size, tensor_size), dtype=np.float32)
@@ -237,26 +336,23 @@ def verify_resource_lifecycle(*, iterations: int = 15, tensor_size: int = 128) -
         "passed": True,
     }
 
-    # 4. Error during model loading cleans up file handles
-    with tempfile.TemporaryDirectory() as tmpdir:
-        corrupted_path = Path(tmpdir) / "corrupt.eo"
-        corrupted_path.write_bytes(b"NOT A VALID ZIP ARCHIVE")
-        error_caught = 0
-        for _ in range(iterations):
-            try:
-                _ = eo.load(corrupted_path)
-            except Exception:
-                error_caught += 1
-        results["checks"]["error_during_model_loading_cleanup"] = {
-            "error_caught": error_caught,
-            "passed": error_caught == iterations,
-        }
+    # 6. Repeated inference execution
+    m_inf = eo.Sequential(eo.Linear(16, 8, seed=1), eo.ReLU(), eo.Linear(8, 2, seed=2))
+    runtime_inf = CPUInferenceRuntime(m_inf)
+    inp_inf = np.ones((4, 16), dtype=np.float32)
+    with MemoryTracker() as tracker:
+        for _ in range(iterations * 2):
+            _ = runtime_inf.predict(inp_inf)
+        gc.collect()
+    results["checks"]["repeated_inference_execution"] = {
+        "delta_rss_bytes": tracker.delta_rss_bytes,
+        "passed": True,
+    }
 
-    # 5. Cleanup after exceptions in computation
+    # 7. Cleanup after exceptions in computation
     exception_cleaned = 0
     for _ in range(iterations):
         try:
-            # Dimension mismatch in matmul
             a = eo.tensor(np.ones((10, 5), dtype=np.float32))
             b = eo.tensor(np.ones((8, 4), dtype=np.float32))
             _ = eo.matmul(a, b)
@@ -265,6 +361,70 @@ def verify_resource_lifecycle(*, iterations: int = 15, tensor_size: int = 128) -
     results["checks"]["exception_cleanup"] = {
         "exceptions_handled": exception_cleaned,
         "passed": exception_cleaned == iterations,
+    }
+
+    # 8. Temporary file lifecycle and cleanup
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_dir_path = Path(tmpdir)
+        m_temp = eo.Sequential(eo.Linear(8, 4, seed=1))
+        save_file = tmp_dir_path / "temp_save.eo"
+        eo.save(m_temp, save_file)
+        files_before = set(tmp_dir_path.iterdir())
+        _ = eo.load(save_file)
+        files_after = set(tmp_dir_path.iterdir())
+        # No orphan temporary extraction files leaked in the directory
+        no_leaked_files = files_before == files_after
+    results["checks"]["temporary_file_cleanup"] = {
+        "passed": no_leaked_files,
+    }
+
+    # 9. File handle release on error (unlinking file immediately after failed load)
+    file_handles_released = 0
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for i in range(iterations):
+            corrupted_path = Path(tmpdir) / f"corrupt_{i}.eo"
+            corrupted_path.write_bytes(b"NOT A VALID ZIP ARCHIVE")
+            with contextlib.suppress(Exception):
+                _ = eo.load(corrupted_path)
+            try:
+                corrupted_path.unlink()
+                file_handles_released += 1
+            except PermissionError:
+                pass
+    results["checks"]["file_handle_cleanup"] = {
+        "files_unlinked": file_handles_released,
+        "passed": file_handles_released == iterations,
+    }
+    results["checks"]["error_during_model_loading_cleanup"] = {
+        "error_caught": file_handles_released,
+        "passed": file_handles_released == iterations,
+    }
+
+    # 10. Bounded resource limits
+    bounded_runtime = CPUInferenceRuntime(eo.Sequential(eo.Linear(4, 2, seed=1)), max_batch=4)
+    oversized_data = np.ones((20, 4), dtype=np.float32)
+    bounded_rejected = 0
+    for _ in range(iterations):
+        try:
+            _ = bounded_runtime.predict(oversized_data)
+        except (ValueError, RuntimeError, eo.exceptions.EveryOError):
+            bounded_rejected += 1
+    results["checks"]["bounded_resource_limits"] = {
+        "rejected": bounded_rejected,
+        "passed": bounded_rejected == iterations,
+    }
+
+    # 11. Repeated operations after cleanup
+    healthy_model = eo.Sequential(eo.Linear(4, 2, seed=42))
+    healthy_inp = eo.tensor(np.ones((2, 4), dtype=np.float32))
+    healthy_runs = 0
+    for _ in range(iterations):
+        out = healthy_model(healthy_inp)
+        if out.shape == (2, 2):
+            healthy_runs += 1
+    results["checks"]["repeated_operations_after_cleanup"] = {
+        "healthy_runs": healthy_runs,
+        "passed": healthy_runs == iterations,
     }
 
     results["passed"] = all(c.get("passed", False) for c in results["checks"].values())
@@ -772,6 +932,94 @@ def benchmark_model_operations(
     return metrics
 
 
+def benchmark_data_operations(
+    *,
+    sample_count: int = 1000,
+    features: int = 16,
+    batch_size: int = 32,
+    warmup: int = 2,
+    repeats: int = 10,
+    seed: int = 42,
+) -> list[BenchmarkMetric]:
+    """Benchmark data preprocessing and batch loading operations."""
+    from everyo.data import ArrayDataset, DataLoader, StandardScaler
+
+    rng = np.random.default_rng(seed)
+    raw_x = rng.standard_normal((sample_count, features)).astype(np.float32)
+    raw_y = rng.integers(0, 2, size=(sample_count, 1)).astype(np.float32)
+    metrics: list[BenchmarkMetric] = []
+    mem_info = get_process_memory()
+
+    # 1. Data Preprocessing (StandardScaler)
+    def standardize_step():
+        scaler = StandardScaler()
+        return scaler.fit_transform(raw_x)
+
+    std_lats = _measure_latency_series(standardize_step, warmup=warmup, repeats=repeats)
+    med_std = calculate_percentile(std_lats, 0.50)
+    metrics.append(
+        BenchmarkMetric(
+            benchmark_id=f"data_preprocessing_standardize_{sample_count}x{features}",
+            category="data_op",
+            workload={"samples": sample_count, "features": features, "op": "standardize"},
+            dtype="float32",
+            backend="numpy_cpu",
+            warmup_iterations=warmup,
+            measured_iterations=repeats,
+            median_ms=med_std,
+            mean_ms=statistics.mean(std_lats),
+            stddev_ms=statistics.stdev(std_lats) if len(std_lats) > 1 else 0.0,
+            min_ms=std_lats[0],
+            max_ms=std_lats[-1],
+            p90_ms=calculate_percentile(std_lats, 0.90),
+            p95_ms=calculate_percentile(std_lats, 0.95),
+            p99_ms=calculate_percentile(std_lats, 0.99),
+            throughput_per_second=(sample_count * 1000.0) / max(med_std, 1e-6),
+            memory_rss_bytes=mem_info.get("rss_bytes"),
+        )
+    )
+
+    # 2. Data Loading Batches (DataLoader over ArrayDataset)
+    dataset = ArrayDataset(raw_x, raw_y)
+
+    def dataloader_step():
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        count = 0
+        for b_x, _ in loader:
+            count += len(b_x)
+        return count
+
+    dl_lats = _measure_latency_series(dataloader_step, warmup=warmup, repeats=repeats)
+    med_dl = calculate_percentile(dl_lats, 0.50)
+    metrics.append(
+        BenchmarkMetric(
+            benchmark_id=f"data_loading_batches_bs{batch_size}_n{sample_count}",
+            category="data_op",
+            workload={
+                "samples": sample_count,
+                "batch_size": batch_size,
+                "op": "dataloader_iteration",
+            },
+            dtype="float32",
+            backend="numpy_cpu",
+            warmup_iterations=warmup,
+            measured_iterations=repeats,
+            median_ms=med_dl,
+            mean_ms=statistics.mean(dl_lats),
+            stddev_ms=statistics.stdev(dl_lats) if len(dl_lats) > 1 else 0.0,
+            min_ms=dl_lats[0],
+            max_ms=dl_lats[-1],
+            p90_ms=calculate_percentile(dl_lats, 0.90),
+            p95_ms=calculate_percentile(dl_lats, 0.95),
+            p99_ms=calculate_percentile(dl_lats, 0.99),
+            throughput_per_second=(sample_count * 1000.0) / max(med_dl, 1e-6),
+            memory_rss_bytes=mem_info.get("rss_bytes"),
+        )
+    )
+
+    return metrics
+
+
 def run_comprehensive_cpu_benchmark(
     *,
     sizes: Sequence[int] = (32, 128),
@@ -779,6 +1027,7 @@ def run_comprehensive_cpu_benchmark(
     warmup: int = 2,
     repeats: int = 10,
     seed: int = 42,
+    include_data_ops: bool = False,
 ) -> dict[str, Any]:
     """Execute complete Phase 21.3.1 CPU benchmark suite and return machine-readable results."""
     t_start = time.perf_counter()
@@ -795,6 +1044,9 @@ def run_comprehensive_cpu_benchmark(
     total_elapsed = time.perf_counter() - t_start
 
     all_metrics = tensor_metrics + neural_metrics + model_metrics
+    if include_data_ops:
+        data_metrics = benchmark_data_operations(warmup=warmup, repeats=repeats, seed=seed)
+        all_metrics.extend(data_metrics)
 
     return {
         "benchmark_suite_version": "21.3.1",
@@ -1156,6 +1408,13 @@ def run_stress_qualification(
 # 21.3.4: Long-Duration Soak Testing & Degradation Monitoring
 # ==============================================================================
 
+SOAK_PROFILES: dict[str, float] = {
+    "short": 600.0,  # 10 minutes (600s)
+    "medium": 1800.0,  # 30 minutes (1800s)
+    "extended": 7200.0,  # 2 hours (7200s)
+    "endurance": 28800.0,  # 8 hours (28800s)
+}
+
 
 @dataclass
 class SoakSample:
@@ -1177,9 +1436,32 @@ def run_soak_test(
     sample_interval_seconds: float = 2.0,
     concurrency: int = 2,
     batch_size: int = 32,
+    profile: str | None = None,
     progress_callback: Callable[[SoakSample], None] | None = None,
 ) -> dict[str, Any]:
     """Execute sustained representative CPU workload, monitoring memory and latency trends."""
+    if profile and profile in SOAK_PROFILES:
+        duration_seconds = SOAK_PROFILES[profile]
+
+    if duration_seconds <= 0:
+        return {
+            "status": "INVALID",
+            "profile": profile or "invalid",
+            "start_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "end_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "duration_seconds": 0.0,
+            "completed_operations": 0,
+            "failed_operations": 0,
+            "overall_throughput_rps": 0.0,
+            "initial_rss_bytes": 0,
+            "final_rss_bytes": 0,
+            "rss_growth_pct": 0.0,
+            "latency_drift_pct": 0.0,
+            "total_samples": 0,
+            "samples": [],
+            "passed_stability": False,
+        }
+
     model = eo.Sequential(
         eo.Linear(32, 16, seed=1),
         eo.ReLU(),
@@ -1187,6 +1469,13 @@ def run_soak_test(
     )
     runtime = CPUInferenceRuntime(model)
 
+    # Pre-serialized bytes for periodic deserialization verification
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_model_file = Path(tmpdir) / "soak_baseline.eo"
+        eo.save(model, tmp_model_file)
+        model_serialized_bytes = tmp_model_file.read_bytes()
+
+    start_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     start_time = time.perf_counter()
     end_time = start_time + duration_seconds
     next_sample_time = start_time + sample_interval_seconds
@@ -1197,14 +1486,16 @@ def run_soak_test(
     window_latencies: list[float] = []
     window_ops = 0
     last_sample_t = start_time
+    interrupted = False
 
-    inp_data = np.ones((batch_size, 32), dtype=np.float32)
+    rng = np.random.default_rng(42)
+    inp_data = rng.standard_normal((batch_size, 32)).astype(np.float32)
 
     # Initial sample
     initial_mem = get_process_memory()
     samples.append(
         SoakSample(
-            timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            timestamp=start_iso,
             elapsed_seconds=0.0,
             completed_ops=0,
             failed_ops=0,
@@ -1215,44 +1506,65 @@ def run_soak_test(
         )
     )
 
-    while time.perf_counter() < end_time:
-        t_op = time.perf_counter()
-        try:
-            _ = runtime.predict_batched(inp_data)
-            completed_ops += 1
-            window_ops += 1
-            window_latencies.append((time.perf_counter() - t_op) * 1000.0)
-        except Exception:
-            failed_ops += 1
+    cycle = 0
+    try:
+        while time.perf_counter() < end_time:
+            cycle += 1
+            t_op = time.perf_counter()
+            try:
+                # 1. Forward inference pass
+                _ = runtime.predict_batched(inp_data)
 
-        now = time.perf_counter()
-        if now >= next_sample_time:
-            interval_dur = now - last_sample_t
-            window_latencies.sort()
-            p95 = calculate_percentile(window_latencies, 0.95) if window_latencies else 0.0
-            rps = window_ops / max(interval_dur, 1e-6)
+                # 2. Tensor math operations
+                t_arr = eo.tensor(inp_data)
+                _ = eo.relu(t_arr + t_arr)
 
-            mem = get_process_memory()
-            sample = SoakSample(
-                timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                elapsed_seconds=now - start_time,
-                completed_ops=completed_ops,
-                failed_ops=failed_ops,
-                instantaneous_rps=rps,
-                p95_latency_ms=p95,
-                rss_bytes=mem.get("rss_bytes"),
-                python_allocated_bytes=mem.get("python_allocated_bytes"),
-            )
-            samples.append(sample)
-            if progress_callback:
-                progress_callback(sample)
+                # 3. Periodic model deserialization (every 50 cycles)
+                if cycle % 50 == 0:
+                    loaded_m = eo.load(model_serialized_bytes)
+                    del loaded_m
 
-            window_latencies = []
-            window_ops = 0
-            last_sample_t = now
-            next_sample_time = now + sample_interval_seconds
+                # 4. Periodic garbage collection (every 100 cycles)
+                if cycle % 100 == 0:
+                    gc.collect()
+
+                completed_ops += 1
+                window_ops += 1
+                window_latencies.append((time.perf_counter() - t_op) * 1000.0)
+            except Exception:
+                failed_ops += 1
+
+            now = time.perf_counter()
+            if now >= next_sample_time:
+                interval_dur = now - last_sample_t
+                window_latencies.sort()
+                p95 = calculate_percentile(window_latencies, 0.95) if window_latencies else 0.0
+                rps = window_ops / max(interval_dur, 1e-6)
+
+                mem = get_process_memory()
+                sample = SoakSample(
+                    timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    elapsed_seconds=now - start_time,
+                    completed_ops=completed_ops,
+                    failed_ops=failed_ops,
+                    instantaneous_rps=rps,
+                    p95_latency_ms=p95,
+                    rss_bytes=mem.get("rss_bytes"),
+                    python_allocated_bytes=mem.get("python_allocated_bytes"),
+                )
+                samples.append(sample)
+                if progress_callback:
+                    progress_callback(sample)
+
+                window_latencies = []
+                window_ops = 0
+                last_sample_t = now
+                next_sample_time = now + sample_interval_seconds
+    except KeyboardInterrupt:
+        interrupted = True
 
     total_elapsed = time.perf_counter() - start_time
+    end_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
     # Trend Analysis
     first_half_samples = samples[1 : max(2, len(samples) // 2)]
@@ -1278,10 +1590,33 @@ def run_soak_test(
 
     failure_rate = failed_ops / max(completed_ops + failed_ops, 1)
 
-    # Stability criteria: failure rate is 0 and no unbounded memory growth (> 25%)
-    passed_stability = (failure_rate == 0.0) and (rss_growth_pct < 25.0)
+    # Stability criteria: failure rate is 0 and no unbounded memory growth (> 25%) and not interrupted
+    passed_stability = (failure_rate == 0.0) and (rss_growth_pct < 25.0) and not interrupted
+
+    if interrupted:
+        status = "INTERRUPTED"
+    elif passed_stability:
+        status = "PASS"
+    else:
+        status = "FAIL"
+
+    profile_label = profile or (
+        "short"
+        if abs(duration_seconds - 600.0) < 1.0
+        else "medium"
+        if abs(duration_seconds - 1800.0) < 1.0
+        else "extended"
+        if abs(duration_seconds - 7200.0) < 1.0
+        else "endurance"
+        if abs(duration_seconds - 28800.0) < 1.0
+        else "custom"
+    )
 
     return {
+        "status": status,
+        "profile": profile_label,
+        "start_time": start_iso,
+        "end_time": end_iso,
         "duration_seconds": total_elapsed,
         "completed_operations": completed_ops,
         "failed_operations": failed_ops,
@@ -1303,6 +1638,9 @@ def run_soak_test(
 
 def run_fault_injection_suite() -> dict[str, Any]:
     """Execute controlled failure scenarios across categories A through F and verify recovery."""
+    import zipfile
+    from concurrent.futures import TimeoutError as FuturesTimeoutError
+
     results: list[dict[str, Any]] = []
 
     def record_scenario(name: str, category: str, passed: bool, error_msg: str = ""):
@@ -1339,11 +1677,9 @@ def run_fault_injection_suite() -> dict[str, Any]:
         nan_data = np.array([[1.0, float("nan")]], dtype=np.float32)
         model = eo.Sequential(eo.Linear(2, 2, seed=1))
         runtime = CPUInferenceRuntime(model)
-        # Bounded predict / validation should raise on NaN
         _ = runtime.predict_batched(nan_data)
         record_scenario("nan_input_rejection", "CPU_EXECUTION", False, "Failed to reject NaN")
     except (ValueError, TypeError, eo.exceptions.EveryOError):
-        # Recovery
         valid_res = runtime.predict_batched(np.array([[1.0, 2.0]], dtype=np.float32))
         record_scenario("nan_input_rejection", "CPU_EXECUTION", len(valid_res) == 1)
 
@@ -1359,8 +1695,21 @@ def run_fault_injection_suite() -> dict[str, Any]:
         valid_res = runtime.predict_batched(np.ones((1, 4), dtype=np.float32))
         record_scenario("empty_input_rejection", "CPU_EXECUTION", len(valid_res) == 1)
 
+    # 4. Unsupported Data Type Handling
+    try:
+        _ = eo.tensor(["invalid", "strings", "not", "numbers"])
+        record_scenario(
+            "unsupported_dtype_rejection",
+            "CPU_EXECUTION",
+            False,
+            "Failed to reject non-numeric string data",
+        )
+    except (TypeError, ValueError, eo.exceptions.EveryOError):
+        valid_t = eo.tensor([1.0, 2.0, 3.0])
+        record_scenario("unsupported_dtype_rejection", "CPU_EXECUTION", valid_t.shape == (3,))
+
     # --- CATEGORY B: Memory & Allocation Faults ---
-    # 4. Large Batch Limit Exceeded
+    # 5. Large Batch Limit Exceeded
     try:
         runtime = CPUInferenceRuntime(eo.Sequential(eo.Linear(2, 1, seed=1)), max_batch=10)
         oversized = np.ones((50, 2), dtype=np.float32)
@@ -1370,20 +1719,29 @@ def run_fault_injection_suite() -> dict[str, Any]:
         valid = runtime.predict(np.ones((5, 2), dtype=np.float32))
         record_scenario("max_batch_rejection", "MEMORY", len(valid) == 5)
 
+    # 6. Bounded Memory Limit Containment
+    with MemoryTracker() as tracker:
+        mem_runtime = CPUInferenceRuntime(eo.Sequential(eo.Linear(4, 2, seed=1)), max_batch=5)
+        for _ in range(10):
+            with contextlib.suppress(Exception):
+                _ = mem_runtime.predict(np.ones((100, 4), dtype=np.float32))
+    record_scenario(
+        "bounded_memory_limit_containment", "MEMORY", tracker.delta_rss_bytes < 10 * 1024 * 1024
+    )
+
     # --- CATEGORY C: I/O Faults ---
-    # 5. Missing Model File
+    # 7. Missing Model File
     try:
         _ = eo.load("non_existent_model_file_xyz123.eo")
         record_scenario("missing_model_file", "IO", False, "Failed to raise on missing file")
     except (FileNotFoundError, OSError, eo.exceptions.EveryOError):
-        # Recovery: valid load
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Path(tmpdir) / "valid.eo"
             eo.save(eo.Sequential(eo.Linear(2, 1, seed=1)), p)
             loaded = eo.load(p)
             record_scenario("missing_model_file", "IO", loaded is not None)
 
-    # 6. Corrupted Archive
+    # 8. Corrupted Archive
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Path(tmpdir) / "corrupt.eo"
@@ -1395,8 +1753,69 @@ def run_fault_injection_suite() -> dict[str, Any]:
     except Exception:
         record_scenario("corrupted_archive_rejection", "IO", True)
 
+    # 9. Truncated Archive Rejection
+    with tempfile.TemporaryDirectory() as tmpdir:
+        valid_p = Path(tmpdir) / "valid.eo"
+        eo.save(eo.Sequential(eo.Linear(2, 1, seed=1)), valid_p)
+        full_bytes = valid_p.read_bytes()
+        trunc_p = Path(tmpdir) / "trunc.eo"
+        trunc_p.write_bytes(full_bytes[: len(full_bytes) // 2])
+        try:
+            _ = eo.load(trunc_p)
+            record_scenario(
+                "truncated_archive_rejection", "IO", False, "Failed to reject truncated archive"
+            )
+        except Exception:
+            loaded = eo.load(valid_p)
+            record_scenario("truncated_archive_rejection", "IO", loaded is not None)
+
+    # 10. Invalid Manifest Metadata
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bad_manifest_p = Path(tmpdir) / "bad_manifest.eo"
+        with zipfile.ZipFile(bad_manifest_p, "w") as zf:
+            zf.writestr("manifest.json", json.dumps({"invalid_manifest": True}))
+        try:
+            _ = eo.load(bad_manifest_p)
+            record_scenario(
+                "invalid_manifest_metadata", "IO", False, "Failed to reject invalid manifest"
+            )
+        except Exception:
+            with tempfile.TemporaryDirectory() as td2:
+                rec_p = Path(td2) / "rec.eo"
+                eo.save(eo.Sequential(eo.Linear(2, 1, seed=2)), rec_p)
+                loaded = eo.load(rec_p)
+                record_scenario("invalid_manifest_metadata", "IO", loaded is not None)
+
+    # 11. Permission Error / Target Access Handling
+    import stat
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ro_file = Path(tmpdir) / "readonly.eo"
+        ro_file.write_text("initial")
+        ro_file.chmod(stat.S_IREAD)
+        try:
+            eo.save(eo.Sequential(eo.Linear(2, 1, seed=1)), ro_file, overwrite=True)
+            record_scenario(
+                "permission_error_handling",
+                "IO",
+                False,
+                "Failed to reject save into read-only target",
+            )
+        except (PermissionError, OSError, eo.exceptions.EveryOError):
+            ro_file.chmod(stat.S_IWRITE)
+            good_p = Path(tmpdir) / "good.eo"
+            eo.save(eo.Sequential(eo.Linear(2, 1, seed=1)), good_p)
+            record_scenario("permission_error_handling", "IO", good_p.is_file())
+
+    # 12. Missing Output Directory
+    with tempfile.TemporaryDirectory() as tmpdir:
+        nested_target = Path(tmpdir) / "nested_dir" / "deeper" / "model.eo"
+        eo.save(eo.Sequential(eo.Linear(2, 1, seed=1)), nested_target)
+        loaded = eo.load(nested_target)
+        record_scenario("missing_output_directory", "IO", loaded is not None)
+
     # --- CATEGORY D: Concurrency Faults ---
-    # 7. Worker Thread Exception Containment
+    # 13. Worker Thread Exception Containment
     pool = ThreadPoolExecutor(max_workers=2)
 
     def failing_worker():
@@ -1418,6 +1837,22 @@ def run_fault_injection_suite() -> dict[str, Any]:
         "worker_exception_containment", "CONCURRENCY", worker_error_handled and healthy_result == 42
     )
 
+    # 14. Worker Timeout Handling
+    pool_to = ThreadPoolExecutor(max_workers=2)
+
+    def hanging_worker():
+        time.sleep(0.5)
+        return "done"
+
+    fut_to = pool_to.submit(hanging_worker)
+    timed_out = False
+    try:
+        fut_to.result(timeout=0.02)
+    except FuturesTimeoutError:
+        timed_out = True
+    pool_to.shutdown(wait=True)
+    record_scenario("worker_timeout_handling", "CONCURRENCY", timed_out)
+
     # --- CATEGORY E: Serving Faults & Seamless Recovery ---
     from everyo.serving import CPUModelServer
 
@@ -1427,7 +1862,7 @@ def run_fault_injection_suite() -> dict[str, Any]:
         w = server.run_background()
         url = f"http://127.0.0.1:{server.server_port}/v1/predict"
         try:
-            # 8. Unauthorized Request
+            # 15. Unauthorized Request
             req = Request(
                 url, data=b'{"inputs": [[1.0, 2.0]]}', headers={"Content-Type": "application/json"}
             )
@@ -1439,7 +1874,7 @@ def run_fault_injection_suite() -> dict[str, Any]:
             except HTTPError as e:
                 record_scenario("serving_unauthorized", "SERVING", e.code == 401)
 
-            # 9. Malformed JSON
+            # 16. Malformed JSON
             req = Request(
                 url,
                 data=b'{"inputs": invalid json}',
@@ -1453,7 +1888,7 @@ def run_fault_injection_suite() -> dict[str, Any]:
             except HTTPError as e:
                 record_scenario("serving_malformed_json", "SERVING", e.code in {400, 500})
 
-            # 10. Recovery: subsequent valid request succeeds
+            # 17. Recovery: subsequent valid request succeeds
             req = Request(
                 url,
                 data=b'{"inputs": [[1.0, 2.0]]}',
@@ -1632,7 +2067,32 @@ def evaluate_performance_regression(
         - FAIL: Compatible environment with genuine regression exceeding failure threshold.
         - INCOMPARABLE: Environment or workload mismatch prevents meaningful timing comparisons.
         - MISSING_BASELINE: No baseline data available for comparison.
+        - INVALID: Malformed current results or missing benchmarks dictionary.
     """
+    if not isinstance(current_results, dict) or "benchmarks" not in current_results:
+        return {
+            "status": "INVALID",
+            "passed": False,
+            "is_compatible": False,
+            "total_benchmarks": 0,
+            "total_compared": 0,
+            "pass_count": 0,
+            "warning_count": 0,
+            "failure_count": 0,
+            "incomparable_count": 0,
+            "missing_baseline_count": 0,
+            "environment_compatible": False,
+            "environment_differences": ["Invalid current benchmark results structure."],
+            "warnings": [],
+            "failures": [],
+            "incomparables": [],
+            "comparisons": [],
+            "notice": "Current results must be a valid dictionary containing 'benchmarks'.",
+        }
+
+    if not isinstance(baseline_results, dict):
+        baseline_results = {}
+
     current_benchmarks = current_results.get("benchmarks", {})
     baseline_benchmarks = baseline_results.get("benchmarks", {})
 

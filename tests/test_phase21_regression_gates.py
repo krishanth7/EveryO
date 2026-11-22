@@ -342,3 +342,16 @@ class TestPerformanceRegressionGates:
         _ = evaluate_performance_regression(current, base)
         assert base == base_copy
         assert base["benchmarks"]["matmul"]["median_ms"] == 5.0
+
+    def test_invalid_current_results_structure(self):
+        base = {
+            "environment": {"platform": "Linux", "python_version": "3.12.0"},
+            "benchmarks": {"matmul": {"median_ms": 5.0}},
+        }
+        res = evaluate_performance_regression({}, base)
+        assert res["status"] == "INVALID"
+        assert res["passed"] is False
+
+        res2 = evaluate_performance_regression(None, base)
+        assert res2["status"] == "INVALID"
+        assert res2["passed"] is False

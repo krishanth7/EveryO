@@ -367,9 +367,23 @@ def parse_args(argv: Sequence[str] | None = None) -> Any:
     )
     parser.add_argument(
         "--profile",
-        choices=["quick", "standard", "full", "memory", "concurrency", "soak", "fault-recovery"],
+        choices=[
+            "quick",
+            "standard",
+            "full",
+            "data",
+            "memory",
+            "concurrency",
+            "soak",
+            "fault-recovery",
+        ],
         default="quick",
         help="Benchmark execution profile (default: quick).",
+    )
+    parser.add_argument(
+        "--include-data-ops",
+        action="store_true",
+        help="Include data loading and preprocessing operations in CPU benchmark suites.",
     )
     parser.add_argument(
         "--duration",
@@ -409,6 +423,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     from pathlib import Path
 
     from everyo.performance_qualification import (
+        benchmark_data_operations,
         evaluate_performance_regression,
         run_comprehensive_cpu_benchmark,
         run_concurrency_correctness_qualification,
@@ -425,16 +440,35 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if profile == "quick":
         result_data = run_comprehensive_cpu_benchmark(
-            sizes=(32, 128), batch_sizes=(16, 64), repeats=5, warmup=2
+            sizes=(32, 128),
+            batch_sizes=(16, 64),
+            repeats=5,
+            warmup=2,
+            include_data_ops=args.include_data_ops,
         )
     elif profile == "standard":
         result_data = run_comprehensive_cpu_benchmark(
-            sizes=(32, 128, 256), batch_sizes=(16, 64), repeats=10, warmup=3
+            sizes=(32, 128, 256),
+            batch_sizes=(16, 64),
+            repeats=10,
+            warmup=3,
+            include_data_ops=args.include_data_ops,
         )
     elif profile == "full":
         result_data = run_comprehensive_cpu_benchmark(
-            sizes=(32, 128, 256, 512), batch_sizes=(16, 64, 128), repeats=15, warmup=3
+            sizes=(32, 128, 256, 512),
+            batch_sizes=(16, 64, 128),
+            repeats=15,
+            warmup=3,
+            include_data_ops=args.include_data_ops,
         )
+    elif profile == "data":
+        data_metrics = benchmark_data_operations()
+        result_data = {
+            "profile": "data",
+            "total_benchmarks": len(data_metrics),
+            "benchmarks": {m.benchmark_id: m.to_dict() for m in data_metrics},
+        }
     elif profile == "memory":
         result_data = verify_resource_lifecycle(iterations=20)
     elif profile == "concurrency":

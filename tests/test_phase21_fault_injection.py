@@ -11,7 +11,7 @@ class TestFaultInjection:
     def test_fault_injection_suite(self):
         res = run_fault_injection_suite()
         assert res["all_passed"] is True
-        assert res["total_scenarios"] >= 8
+        assert res["total_scenarios"] >= 15
         assert res["failed_scenarios"] == 0
 
         categories = {s["category"] for s in res["scenarios"]}

@@ -6,6 +6,7 @@ import pytest
 
 from everyo.performance_qualification import (
     BenchmarkMetric,
+    benchmark_data_operations,
     benchmark_model_operations,
     benchmark_neural_computation,
     benchmark_tensor_operations,
@@ -43,10 +44,28 @@ class TestCpuPerformanceBaselines:
     def test_environment_metadata(self):
         env = get_environment_metadata()
         assert "everyo_version" in env
+        assert "git_commit_sha" in env
         assert "python_version" in env
+        assert "python_implementation" in env
+        assert "thread_settings" in env
+        assert "optional_backends" in env
         assert "cpu_count_logical" in env
         assert env["cpu_count_logical"] >= 1
         assert "numpy_version" in env
+
+    def test_data_operations_benchmark(self):
+        metrics = benchmark_data_operations(
+            sample_count=100, features=8, batch_size=16, warmup=1, repeats=3, seed=42
+        )
+        assert len(metrics) == 2
+        ids = [m.benchmark_id for m in metrics]
+        assert any("standardize" in b_id for b_id in ids)
+        assert any("data_loading_batches" in b_id for b_id in ids)
+        for m in metrics:
+            assert isinstance(m, BenchmarkMetric)
+            assert m.category == "data_op"
+            assert m.median_ms > 0
+            assert m.throughput_per_second > 0
 
     def test_tensor_operations_benchmark(self):
         metrics = benchmark_tensor_operations(sizes=(16, 32), warmup=1, repeats=5, seed=42)
@@ -85,10 +104,16 @@ class TestCpuPerformanceBaselines:
 
     def test_comprehensive_cpu_benchmark_suite(self):
         res = run_comprehensive_cpu_benchmark(
-            sizes=(16,), batch_sizes=(8,), warmup=1, repeats=3, seed=42
+            sizes=(16,), batch_sizes=(8,), warmup=1, repeats=3, seed=42, include_data_ops=False
         )
         assert res["benchmark_suite_version"] == "21.3.1"
         assert res["total_benchmarks"] > 0
         assert "benchmarks" in res
         assert "environment" in res
         assert res["duration_seconds"] > 0
+
+        # With include_data_ops=True, data operations are appended
+        res_with_data = run_comprehensive_cpu_benchmark(
+            sizes=(16,), batch_sizes=(8,), warmup=1, repeats=3, seed=42, include_data_ops=True
+        )
+        assert res_with_data["total_benchmarks"] == res["total_benchmarks"] + 2

@@ -39,8 +39,16 @@ class TestMemoryProfiling:
     def test_resource_lifecycle_suite(self):
         lifecycle = verify_resource_lifecycle(iterations=10, tensor_size=64)
         assert lifecycle["passed"] is True
-        assert "model_creation_destruction" in lifecycle["checks"]
-        assert "serialization_deserialization" in lifecycle["checks"]
-        assert "large_tensor_lifecycle" in lifecycle["checks"]
-        assert "error_during_model_loading_cleanup" in lifecycle["checks"]
-        assert "exception_cleanup" in lifecycle["checks"]
+        checks = lifecycle["checks"]
+        assert "model_creation_destruction" in checks
+        assert "repeated_serialization" in checks
+        assert "repeated_deserialization" in checks
+        assert "serialization_deserialization" in checks
+        assert "large_tensor_lifecycle" in checks
+        assert "repeated_inference_execution" in checks
+        assert "exception_cleanup" in checks
+        assert "temporary_file_cleanup" in checks
+        assert "file_handle_cleanup" in checks
+        assert "bounded_resource_limits" in checks
+        assert "repeated_operations_after_cleanup" in checks
+        assert all(c["passed"] for c in checks.values())
