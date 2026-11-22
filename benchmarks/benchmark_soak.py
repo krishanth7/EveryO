@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from everyo.performance_qualification import run_soak_test
+from everyo.performance_qualification import SOAK_PROFILES, run_soak_test
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -15,10 +15,19 @@ def main(argv: list[str] | None = None) -> int:
         description="Execute sustained CPU soak test with degradation monitoring"
     )
     parser.add_argument(
-        "--duration", type=float, default=30.0, help="Test duration in seconds (e.g. 300 for 5 min)"
+        "--profile",
+        choices=list(SOAK_PROFILES.keys()),
+        default=None,
+        help="Named soak profile (short: 600s, medium: 1800s, extended: 7200s, endurance: 28800s)",
     )
     parser.add_argument(
-        "--sample-interval", type=float, default=2.0, help="Seconds between telemetry samples"
+        "--duration",
+        type=float,
+        default=30.0,
+        help="Test duration in seconds (e.g. 600 for 10 min)",
+    )
+    parser.add_argument(
+        "--sample-interval", type=float, default=5.0, help="Seconds between telemetry samples"
     )
     parser.add_argument(
         "--batch-size", type=int, default=32, help="Microbatch size for continuous inference"
@@ -26,8 +35,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", "-o", type=str, default=None, help="Output JSON path")
     args = parser.parse_args(argv)
 
+    duration = SOAK_PROFILES[args.profile] if args.profile else args.duration
     print(
-        f"Starting EveryO Soak Benchmark (Duration: {args.duration:.1f}s, Interval: {args.sample_interval:.1f}s)..."
+        f"Starting EveryO Soak Benchmark (Profile: {args.profile or 'custom'}, Duration: {duration:.1f}s, Interval: {args.sample_interval:.1f}s)..."
     )
 
     def progress(sample):
@@ -37,9 +47,10 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     res = run_soak_test(
-        duration_seconds=args.duration,
+        duration_seconds=duration,
         sample_interval_seconds=args.sample_interval,
         batch_size=args.batch_size,
+        profile=args.profile,
         progress_callback=progress,
     )
 

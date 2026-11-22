@@ -1,0 +1,218 @@
+{
+  "status": "PASS",
+  "profile": "short",
+  "start_time": "2026-11-22T12:37:33Z",
+  "end_time": "2026-11-22T12:47:33Z",
+  "duration_seconds": 600.009704600001,
+  "completed_operations": 1412500,
+  "failed_operations": 0,
+  "overall_throughput_rps": 2354.1285902061354,
+  "initial_rss_bytes": 46444544,
+  "final_rss_bytes": 50659328,
+  "rss_growth_pct": 9.07487432754211,
+  "latency_drift_pct": 3.013499823150023,
+  "total_samples": 20,
+  "samples": [
+    {
+      "timestamp": "2026-11-22T12:37:33Z",
+      "elapsed_seconds": 0.0,
+      "completed_ops": 0,
+      "failed_ops": 0,
+      "instantaneous_rps": 0.0,
+      "p95_latency_ms": 0.0,
+      "rss_bytes": 46444544,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:38:03Z",
+      "elapsed_seconds": 30.000165899997228,
+      "completed_ops": 65450,
+      "failed_ops": 0,
+      "instantaneous_rps": 2181.6546021169183,
+      "p95_latency_ms": 0.7791000032739248,
+      "rss_bytes": 49524736,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:38:33Z",
+      "elapsed_seconds": 60.00024829999893,
+      "completed_ops": 143356,
+      "failed_ops": 0,
+      "instantaneous_rps": 2596.8595339589992,
+      "p95_latency_ms": 0.6252749990380835,
+      "rss_bytes": 50610176,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:39:03Z",
+      "elapsed_seconds": 90.00026590000198,
+      "completed_ops": 219779,
+      "failed_ops": 0,
+      "instantaneous_rps": 2547.431838839729,
+      "p95_latency_ms": 0.6307000003289431,
+      "rss_bytes": 50212864,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:39:33Z",
+      "elapsed_seconds": 120.00096740000299,
+      "completed_ops": 294201,
+      "failed_ops": 0,
+      "instantaneous_rps": 2480.6753268751895,
+      "p95_latency_ms": 0.665689991001272,
+      "rss_bytes": 50278400,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:40:03Z",
+      "elapsed_seconds": 150.0018962000031,
+      "completed_ops": 365850,
+      "failed_ops": 0,
+      "instantaneous_rps": 2388.2260605211573,
+      "p95_latency_ms": 0.6970199960051087,
+      "rss_bytes": 49909760,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:40:33Z",
+      "elapsed_seconds": 180.00212309999915,
+      "completed_ops": 441986,
+      "failed_ops": 0,
+      "instantaneous_rps": 2537.8474720806203,
+      "p95_latency_ms": 0.645124997390667,
+      "rss_bytes": 49917952,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:41:03Z",
+      "elapsed_seconds": 210.00303419999545,
+      "completed_ops": 519001,
+      "failed_ops": 0,
+      "instantaneous_rps": 2567.088704183037,
+      "p95_latency_ms": 0.6334999969112687,
+      "rss_bytes": 50561024,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:41:33Z",
+      "elapsed_seconds": 240.00312680000206,
+      "completed_ops": 594609,
+      "failed_ops": 0,
+      "instantaneous_rps": 2520.258887467012,
+      "p95_latency_ms": 0.6436999974539503,
+      "rss_bytes": 50569216,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:42:03Z",
+      "elapsed_seconds": 270.0034716999944,
+      "completed_ops": 640393,
+      "failed_ops": 0,
+      "instantaneous_rps": 1526.1157880892124,
+      "p95_latency_ms": 1.1143350035126771,
+      "rss_bytes": 50208768,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:42:33Z",
+      "elapsed_seconds": 300.0036221000046,
+      "completed_ops": 702754,
+      "failed_ops": 0,
+      "instantaneous_rps": 2078.68957883554,
+      "p95_latency_ms": 0.7978999929036945,
+      "rss_bytes": 50638848,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:43:03Z",
+      "elapsed_seconds": 330.00364439999976,
+      "completed_ops": 784375,
+      "failed_ops": 0,
+      "instantaneous_rps": 2720.6979776149406,
+      "p95_latency_ms": 0.5601000011665747,
+      "rss_bytes": 51097600,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:43:33Z",
+      "elapsed_seconds": 360.01556129999517,
+      "completed_ops": 869200,
+      "failed_ops": 0,
+      "instantaneous_rps": 2826.377278154231,
+      "p95_latency_ms": 0.50503999227658,
+      "rss_bytes": 51097600,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:44:03Z",
+      "elapsed_seconds": 390.0196814999945,
+      "completed_ops": 941800,
+      "failed_ops": 0,
+      "instantaneous_rps": 2419.6676828404948,
+      "p95_latency_ms": 0.687599997036159,
+      "rss_bytes": 50659328,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:44:33Z",
+      "elapsed_seconds": 420.01982750000025,
+      "completed_ops": 1012502,
+      "failed_ops": 0,
+      "instantaneous_rps": 2356.721863953142,
+      "p95_latency_ms": 0.767599995015189,
+      "rss_bytes": 50638848,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:45:03Z",
+      "elapsed_seconds": 450.0199008999916,
+      "completed_ops": 1075698,
+      "failed_ops": 0,
+      "instantaneous_rps": 2106.52817936166,
+      "p95_latency_ms": 0.9068500039575156,
+      "rss_bytes": 50647040,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:45:33Z",
+      "elapsed_seconds": 480.02030370000284,
+      "completed_ops": 1142914,
+      "failed_ops": 0,
+      "instantaneous_rps": 2240.503250842181,
+      "p95_latency_ms": 0.8272249979199842,
+      "rss_bytes": 50487296,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:46:03Z",
+      "elapsed_seconds": 510.02837369999907,
+      "completed_ops": 1212000,
+      "failed_ops": 0,
+      "instantaneous_rps": 2302.2473621265444,
+      "p95_latency_ms": 0.7669749938941095,
+      "rss_bytes": 50659328,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:46:33Z",
+      "elapsed_seconds": 540.0431946000026,
+      "completed_ops": 1279500,
+      "failed_ops": 0,
+      "instantaneous_rps": 2248.8889813762653,
+      "p95_latency_ms": 0.7989100005943319,
+      "rss_bytes": 50536448,
+      "python_allocated_bytes": null
+    },
+    {
+      "timestamp": "2026-11-22T12:47:03Z",
+      "elapsed_seconds": 570.0432618999912,
+      "completed_ops": 1348598,
+      "failed_ops": 0,
+      "instantaneous_rps": 2303.2614996842453,
+      "p95_latency_ms": 0.7466299954103295,
+      "rss_bytes": 50659328,
+      "python_allocated_bytes": null
+    }
+  ],
+  "passed_stability": true
+}
