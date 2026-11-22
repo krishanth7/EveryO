@@ -7,7 +7,7 @@ ruff==0.17.5
 PyYAML>=6.0,<7.0
 pip-audit>=2.7.0,<3.0.0
 cryptography>=42.0.0,<51.0.0
-pybind11>=2.11,<3.0.0
+pybind11>=2.11,<4.0.0
 build>=1.6.1,<2.0.0
 twine>=7.0.0,<8.0.0
 tomli>=2.0.0,<3.0.0; python_version < "3.11"
