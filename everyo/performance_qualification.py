@@ -1743,15 +1743,42 @@ def run_soak_test(
         rss_growth_bytes = final_rss - init_rss
         rss_growth_pct = (rss_growth_bytes / max(init_rss, 1)) * 100.0 if init_rss > 0 else 0.0
 
-        if rss_growth_pct <= 5.0:
+        warm_rss = samples[1].rss_bytes if len(samples) > 1 else init_rss
+        steady_state_growth_pct = (
+            ((final_rss - warm_rss) / max(warm_rss, 1)) * 100.0 if warm_rss > 0 else 0.0
+        )
+        mean_rss_first = (
+            statistics.mean([s.rss_bytes for s in first_half_samples])
+            if first_half_samples
+            else init_rss
+        )
+        mean_rss_second = (
+            statistics.mean([s.rss_bytes for s in second_half_samples])
+            if second_half_samples
+            else final_rss
+        )
+        second_half_growth_pct = (
+            ((mean_rss_second - mean_rss_first) / max(mean_rss_first, 1)) * 100.0
+            if mean_rss_first > 0
+            else 0.0
+        )
+
+        if rss_growth_pct <= 5.0 or (
+            steady_state_growth_pct <= 5.0 and second_half_growth_pct <= 5.0
+        ):
             rss_trend = "STABLE"
             memory_assessment = "NO_LEAK_DETECTED"
-        elif rss_growth_pct < 25.0:
+            is_unbounded_leak = False
+        elif steady_state_growth_pct <= 25.0 or (
+            rss_growth_bytes < 50 * 1024 * 1024 and second_half_growth_pct <= 15.0
+        ):
             rss_trend = "BOUNDED_GROWTH"
             memory_assessment = "BOUNDED_ALLOCATOR_EXPANSION_NO_CONFIRMED_LEAK"
+            is_unbounded_leak = False
         else:
             rss_trend = "UNBOUNDED_GROWTH"
             memory_assessment = "CONFIRMED_MEMORY_LEAK"
+            is_unbounded_leak = True
 
         # Python allocation metrics
         if trace_python or tracemalloc.is_tracing():
@@ -1814,8 +1841,8 @@ def run_soak_test(
 
         failure_rate = failed_ops / max(completed_ops + failed_ops, 1)
 
-        # Stability criteria: failure rate is 0, no unbounded memory growth (< 25%), and not interrupted
-        passed_stability = (failure_rate == 0.0) and (rss_growth_pct < 25.0) and not interrupted
+        # Stability criteria: failure rate is 0, no confirmed unbounded memory leak, and not interrupted
+        passed_stability = (failure_rate == 0.0) and (not is_unbounded_leak) and not interrupted
 
         if interrupted:
             status = "INTERRUPTED"

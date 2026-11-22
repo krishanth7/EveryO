@@ -111,3 +111,21 @@ class TestSoakQualification:
         res_concurrency = run_soak_test(duration_seconds=5.0, concurrency=-1)
         assert res_concurrency["status"] == "INVALID"
         assert res_concurrency["passed_stability"] is False
+
+    def test_endurance_profile_execution_entrypoint(self):
+        """Dedicated separately executable entrypoint for the 8-hour endurance profile.
+
+        Run explicitly via:
+            EVERYO_RUN_ENDURANCE_SOAK=1 pytest tests/test_phase21_soak.py -k test_endurance_profile_execution_entrypoint
+        """
+        import os
+
+        import pytest
+
+        if os.environ.get("EVERYO_RUN_ENDURANCE_SOAK") != "1":
+            pytest.skip(
+                "Pass EVERYO_RUN_ENDURANCE_SOAK=1 to execute the full 8-hour endurance soak qualification profile"
+            )
+        res = run_soak_test(profile="endurance", sample_interval_seconds=60.0)
+        assert res["status"] == "PASS"
+        assert res["duration_seconds"] >= 28800.0
