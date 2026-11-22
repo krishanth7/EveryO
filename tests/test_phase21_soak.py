@@ -128,7 +128,7 @@ class TestSoakQualification:
             pytest.skip(
                 "Pass EVERYO_RUN_ENDURANCE_SOAK=1 to execute the full 8-hour endurance soak qualification profile"
             )
-        res = run_soak_test(profile="endurance", sample_interval_seconds=60.0)
+        res = run_soak_test(profile="endurance", sample_interval_seconds=60.0, trace_python=True)
         assert res["status"] == "PASS"
         assert res["duration_seconds"] >= 28800.0
 
@@ -186,3 +186,83 @@ class TestSoakQualification:
         assert trend == "UNBOUNDED_GROWTH"
         assert assessment == "CONFIRMED_MEMORY_LEAK"
         assert is_leak is True
+
+    def test_assess_memory_stability_insufficient_or_invalid_telemetry(self):
+        # A: Invalid initial or final RSS (0 or negative)
+        samples = [{"rss_bytes": 50000000, "python_allocated_bytes": 1000000} for _ in range(10)]
+        trend, assessment, is_leak = assess_memory_stability(
+            samples, total_elapsed=600.0, init_rss=0, final_rss=50000000
+        )
+        assert trend == "INCONCLUSIVE"
+        assert assessment == "INCONCLUSIVE"
+        assert is_leak is False
+
+        # B: Non-integer / missing RSS in samples
+        samples_missing = [
+            {"rss_bytes": None, "python_allocated_bytes": 1000000} for _ in range(10)
+        ]
+        trend, assessment, is_leak = assess_memory_stability(
+            samples_missing, total_elapsed=600.0, init_rss=50000000, final_rss=50000000
+        )
+        assert trend == "INCONCLUSIVE"
+        assert assessment == "INCONCLUSIVE"
+        assert is_leak is False
+
+    def test_assess_memory_stability_misleading_patterns(self):
+        # 1. Creeping slow leak (< 50MB absolute growth, but steady-state > 15% and second half > 8%)
+        # e.g., 50MB -> 52MB warm -> steady climb to 68MB (+16MB late growth)
+        samples_creeping = [
+            {"rss_bytes": 50000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 52000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 54000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 56000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 58000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 61000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 63000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 65000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 67000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 69000000, "python_allocated_bytes": 1000000},
+        ]
+        trend, assessment, is_leak = assess_memory_stability(
+            samples_creeping, total_elapsed=600.0, init_rss=50000000, final_rss=69000000
+        )
+        assert trend == "UNBOUNDED_GROWTH"
+        assert assessment == "CONFIRMED_MEMORY_LEAK"
+        assert is_leak is True
+
+        # 2. Python allocation leak while RSS looks plateaued
+        # Python allocations grow > 20MB with high second-half slope
+        samples_py_leak = [
+            {"rss_bytes": 50000000, "python_allocated_bytes": 5000000 + i * 5000000}
+            for i in range(10)
+        ]
+        trend, assessment, is_leak = assess_memory_stability(
+            samples_py_leak,
+            total_elapsed=600.0,
+            init_rss=50000000,
+            final_rss=50000000,
+            trace_python=True,
+        )
+        assert trend == "UNBOUNDED_GROWTH"
+        assert assessment == "CONFIRMED_MEMORY_LEAK"
+        assert is_leak is True
+
+        # 3. Sawtooth cyclic pattern with stable baseline (e.g. batch GC) -> bounded
+        samples_sawtooth_stable = [
+            {"rss_bytes": 50000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 58000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 50500000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 58200000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 50200000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 58100000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 50300000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 58000000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 50400000, "python_allocated_bytes": 1000000},
+            {"rss_bytes": 51000000, "python_allocated_bytes": 1000000},
+        ]
+        trend, assessment, is_leak = assess_memory_stability(
+            samples_sawtooth_stable, total_elapsed=600.0, init_rss=50000000, final_rss=51000000
+        )
+        assert trend in ("STABLE", "BOUNDED_GROWTH")
+        assert assessment in ("NO_LEAK_DETECTED", "BOUNDED_ALLOCATOR_EXPANSION_NO_CONFIRMED_LEAK")
+        assert is_leak is False

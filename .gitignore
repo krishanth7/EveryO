@@ -44,6 +44,7 @@ htmlcov/
 artifacts/
 outputs/
 benchmark_results/
+benchmark-results.json
 *.png
 !docs/assets/*.png
 

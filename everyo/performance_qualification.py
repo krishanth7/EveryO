@@ -1491,11 +1491,13 @@ def validate_soak_report(report: dict[str, Any]) -> tuple[bool, list[str]]:
         "INTERRUPTED",
         "INVALID",
         "NOT RUN",
+        "NOT_RUN",
+        "INCOMPLETE",
         "INCONCLUSIVE",
     ):
         errors.append(f"Invalid status: '{status}'")
 
-    if status == "NOT RUN":
+    if status in ("NOT RUN", "NOT_RUN", "INCOMPLETE"):
         required_not_run_keys = [
             "status",
             "profile",
@@ -1600,23 +1602,26 @@ def assess_memory_stability(
     Returns:
         tuple[rss_trend, memory_assessment, is_unbounded_leak]
     """
-    if total_elapsed < 60.0 or len(samples) < 5:
-        # Insufficient duration or sample count to confirm absence of slow leaks
+    if total_elapsed < 60.0 or len(samples) < 5 or init_rss <= 0 or final_rss <= 0:
+        # Insufficient duration, sample count, or invalid telemetry to confirm absence of slow leaks
         return "INCONCLUSIVE", "INCONCLUSIVE", False
 
     rss_values: list[int] = []
     py_values: list[int] = []
     for s in samples:
         rss = s.rss_bytes if isinstance(s, SoakSample) else s.get("rss_bytes")
-        if isinstance(rss, int):
+        if isinstance(rss, int) and rss > 0:
             rss_values.append(rss)
         py = (
             s.python_allocated_bytes
             if isinstance(s, SoakSample)
             else s.get("python_allocated_bytes")
         )
-        if isinstance(py, int):
+        if isinstance(py, int) and py > 0:
             py_values.append(py)
+
+    if len(rss_values) < 5:
+        return "INCONCLUSIVE", "INCONCLUSIVE", False
 
     rss_growth_bytes = final_rss - init_rss
     rss_growth_pct = (rss_growth_bytes / max(init_rss, 1)) * 100.0 if init_rss > 0 else 0.0
@@ -1647,19 +1652,26 @@ def assess_memory_stability(
             else 0.0
         )
         py_growth_bytes = py_values[-1] - py_values[0]
-        if py_growth_bytes > 50 * 1024 * 1024 and py_second_half_growth > 25.0:
+        if (py_growth_bytes > 50 * 1024 * 1024 and py_second_half_growth > 25.0) or (
+            py_growth_bytes > 20 * 1024 * 1024 and py_second_half_growth > 15.0
+        ):
             py_leak = True
 
     # Memory classification
-    if py_leak or (rss_growth_bytes > 50 * 1024 * 1024 and second_half_growth_pct > 15.0):
+    # Leak conditions:
+    # 1. Independent Python heap leak confirmed
+    # 2. Massive RSS growth (> 50MB) with continuing second-half drift (> 10%)
+    # 3. Creeping memory leak: steady-state growth > 15% AND second-half growth > 8%
+    is_creeping_leak = steady_state_growth_pct > 15.0 and second_half_growth_pct > 8.0
+    is_massive_leak = rss_growth_bytes > 50 * 1024 * 1024 and second_half_growth_pct > 10.0
+
+    if py_leak or is_massive_leak or is_creeping_leak:
         return "UNBOUNDED_GROWTH", "CONFIRMED_MEMORY_LEAK", True
 
     if rss_growth_pct <= 5.0 or (steady_state_growth_pct <= 5.0 and second_half_growth_pct <= 5.0):
         return "STABLE", "NO_LEAK_DETECTED", False
 
-    if steady_state_growth_pct <= 25.0 or (
-        rss_growth_bytes < 50 * 1024 * 1024 and second_half_growth_pct <= 15.0
-    ):
+    if steady_state_growth_pct <= 25.0 and second_half_growth_pct <= 8.0:
         return "BOUNDED_GROWTH", "BOUNDED_ALLOCATOR_EXPANSION_NO_CONFIRMED_LEAK", False
 
     return "UNBOUNDED_GROWTH", "CONFIRMED_MEMORY_LEAK", True
