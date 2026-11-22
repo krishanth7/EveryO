@@ -1790,22 +1790,33 @@ def run_fault_injection_suite() -> dict[str, Any]:
     import stat
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        ro_file = Path(tmpdir) / "readonly.eo"
-        ro_file.write_text("initial")
-        ro_file.chmod(stat.S_IREAD)
+        if sys.platform != "win32":
+            ro_target_dir = Path(tmpdir) / "no_write"
+            ro_target_dir.mkdir()
+            ro_target_dir.chmod(stat.S_IREAD | stat.S_IEXEC)
+            target = ro_target_dir / "readonly.eo"
+        else:
+            target = Path(tmpdir) / "readonly.eo"
+            target.write_text("initial")
+            target.chmod(stat.S_IREAD)
         try:
-            eo.save(eo.Sequential(eo.Linear(2, 1, seed=1)), ro_file, overwrite=True)
-            record_scenario(
-                "permission_error_handling",
-                "IO",
-                False,
-                "Failed to reject save into read-only target",
-            )
-        except (PermissionError, OSError, eo.exceptions.EveryOError):
-            ro_file.chmod(stat.S_IWRITE)
-            good_p = Path(tmpdir) / "good.eo"
-            eo.save(eo.Sequential(eo.Linear(2, 1, seed=1)), good_p)
-            record_scenario("permission_error_handling", "IO", good_p.is_file())
+            try:
+                eo.save(eo.Sequential(eo.Linear(2, 1, seed=1)), target, overwrite=True)
+                record_scenario(
+                    "permission_error_handling",
+                    "IO",
+                    False,
+                    "Failed to reject save into read-only target",
+                )
+            except (PermissionError, OSError, eo.exceptions.EveryOError):
+                good_p = Path(tmpdir) / "good.eo"
+                eo.save(eo.Sequential(eo.Linear(2, 1, seed=1)), good_p)
+                record_scenario("permission_error_handling", "IO", good_p.is_file())
+        finally:
+            if sys.platform != "win32":
+                ro_target_dir.chmod(stat.S_IRWXU)
+            else:
+                target.chmod(stat.S_IWRITE)
 
     # 12. Missing Output Directory
     with tempfile.TemporaryDirectory() as tmpdir:
