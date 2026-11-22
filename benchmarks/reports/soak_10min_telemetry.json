@@ -1,218 +1,356 @@
 {
   "status": "PASS",
   "profile": "short",
-  "start_time": "2026-11-22T12:37:33Z",
-  "end_time": "2026-11-22T12:47:33Z",
-  "duration_seconds": 600.009704600001,
-  "completed_operations": 1412500,
-  "failed_operations": 0,
-  "overall_throughput_rps": 2354.1285902061354,
-  "initial_rss_bytes": 46444544,
-  "final_rss_bytes": 50659328,
-  "rss_growth_pct": 9.07487432754211,
-  "latency_drift_pct": 3.013499823150023,
+  "git_commit_sha": "fbf11474309e4f16860beb3d6a2c3a0c74d7cbef",
+  "everyo_version": "0.5.0",
+  "python_implementation": "CPython",
+  "python_version": "3.15.2",
+  "os_name": "Windows",
+  "os_version": "10.0.26300",
+  "architecture": "AMD64",
+  "processor": "Intel64 Family 6 Model 181 Stepping 0, GenuineIntel",
+  "cpu_count_logical": 14,
+  "numpy_version": "2.5.5",
+  "backend_configuration": {
+    "cuda": false,
+    "tensorflow": false
+  },
+  "thread_settings": {
+    "OMP_NUM_THREADS": null,
+    "MKL_NUM_THREADS": null,
+    "OPENBLAS_NUM_THREADS": null,
+    "VECLIB_MAXIMUM_THREADS": null,
+    "NUMEXPR_NUM_THREADS": null
+  },
+  "requested_duration_seconds": 600.0,
+  "actual_duration_seconds": 600.0030346999993,
+  "duration_seconds": 600.0030346999993,
+  "start_time": "2026-11-22T13:16:14Z",
+  "end_time": "2026-11-22T13:26:14Z",
+  "initial_rss_bytes": 46202880,
+  "final_rss_bytes": 51302400,
+  "peak_rss_bytes": 51843072,
+  "rss_growth_bytes": 5099520,
+  "rss_growth_pct": 11.037234042553191,
+  "rss_trend": "BOUNDED_GROWTH",
+  "memory_assessment": "BOUNDED_ALLOCATOR_EXPANSION_NO_CONFIRMED_LEAK",
+  "python_allocation_status": "NOT_COLLECTED",
+  "python_allocated_metrics": "NOT_COLLECTED",
   "total_samples": 20,
+  "completed_operations": 1568400,
+  "failed_operations": 0,
+  "overall_throughput_rps": 2613.98677889054,
+  "latency_drift_pct": 6.812293642188013,
+  "latency_statistics": {
+    "mean_p95_ms": 0.627361052619036,
+    "median_p95_ms": 0.617635002708993,
+    "min_p95_ms": 0.4425099934451273,
+    "max_p95_ms": 1.0282000002916902,
+    "p50_ms": 0.15300000086426735,
+    "p90_ms": 0.29748999513685737,
+    "p95_ms": 0.5861200093931981,
+    "p99_ms": 4.438113999933014
+  },
   "samples": [
     {
-      "timestamp": "2026-11-22T12:37:33Z",
+      "timestamp": "2026-11-22T13:16:14Z",
       "elapsed_seconds": 0.0,
       "completed_ops": 0,
       "failed_ops": 0,
       "instantaneous_rps": 0.0,
       "p95_latency_ms": 0.0,
-      "rss_bytes": 46444544,
-      "python_allocated_bytes": null
+      "rss_bytes": 46202880,
+      "python_allocated_bytes": "NOT_COLLECTED"
     },
     {
-      "timestamp": "2026-11-22T12:38:03Z",
-      "elapsed_seconds": 30.000165899997228,
-      "completed_ops": 65450,
+      "timestamp": "2026-11-22T13:16:44Z",
+      "elapsed_seconds": 30.00187300000107,
+      "completed_ops": 74300,
       "failed_ops": 0,
-      "instantaneous_rps": 2181.6546021169183,
-      "p95_latency_ms": 0.7791000032739248,
-      "rss_bytes": 49524736,
-      "python_allocated_bytes": null
+      "instantaneous_rps": 2476.5120497642715,
+      "p95_latency_ms": 0.6882050016429279,
+      "rss_bytes": 50016256,
+      "python_allocated_bytes": "NOT_COLLECTED"
     },
     {
-      "timestamp": "2026-11-22T12:38:33Z",
-      "elapsed_seconds": 60.00024829999893,
-      "completed_ops": 143356,
+      "timestamp": "2026-11-22T13:17:14Z",
+      "elapsed_seconds": 60.00193100000615,
+      "completed_ops": 162090,
       "failed_ops": 0,
-      "instantaneous_rps": 2596.8595339589992,
-      "p95_latency_ms": 0.6252749990380835,
-      "rss_bytes": 50610176,
-      "python_allocated_bytes": null
+      "instantaneous_rps": 2926.327675765998,
+      "p95_latency_ms": 0.5969549973087854,
+      "rss_bytes": 51843072,
+      "python_allocated_bytes": "NOT_COLLECTED"
     },
     {
-      "timestamp": "2026-11-22T12:39:03Z",
-      "elapsed_seconds": 90.00026590000198,
-      "completed_ops": 219779,
+      "timestamp": "2026-11-22T13:17:44Z",
+      "elapsed_seconds": 90.01098540000385,
+      "completed_ops": 236400,
       "failed_ops": 0,
-      "instantaneous_rps": 2547.431838839729,
-      "p95_latency_ms": 0.6307000003289431,
-      "rss_bytes": 50212864,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:39:33Z",
-      "elapsed_seconds": 120.00096740000299,
-      "completed_ops": 294201,
-      "failed_ops": 0,
-      "instantaneous_rps": 2480.6753268751895,
-      "p95_latency_ms": 0.665689991001272,
-      "rss_bytes": 50278400,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:40:03Z",
-      "elapsed_seconds": 150.0018962000031,
-      "completed_ops": 365850,
-      "failed_ops": 0,
-      "instantaneous_rps": 2388.2260605211573,
-      "p95_latency_ms": 0.6970199960051087,
-      "rss_bytes": 49909760,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:40:33Z",
-      "elapsed_seconds": 180.00212309999915,
-      "completed_ops": 441986,
-      "failed_ops": 0,
-      "instantaneous_rps": 2537.8474720806203,
-      "p95_latency_ms": 0.645124997390667,
-      "rss_bytes": 49917952,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:41:03Z",
-      "elapsed_seconds": 210.00303419999545,
-      "completed_ops": 519001,
-      "failed_ops": 0,
-      "instantaneous_rps": 2567.088704183037,
-      "p95_latency_ms": 0.6334999969112687,
-      "rss_bytes": 50561024,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:41:33Z",
-      "elapsed_seconds": 240.00312680000206,
-      "completed_ops": 594609,
-      "failed_ops": 0,
-      "instantaneous_rps": 2520.258887467012,
-      "p95_latency_ms": 0.6436999974539503,
-      "rss_bytes": 50569216,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:42:03Z",
-      "elapsed_seconds": 270.0034716999944,
-      "completed_ops": 640393,
-      "failed_ops": 0,
-      "instantaneous_rps": 1526.1157880892124,
-      "p95_latency_ms": 1.1143350035126771,
-      "rss_bytes": 50208768,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:42:33Z",
-      "elapsed_seconds": 300.0036221000046,
-      "completed_ops": 702754,
-      "failed_ops": 0,
-      "instantaneous_rps": 2078.68957883554,
-      "p95_latency_ms": 0.7978999929036945,
-      "rss_bytes": 50638848,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:43:03Z",
-      "elapsed_seconds": 330.00364439999976,
-      "completed_ops": 784375,
-      "failed_ops": 0,
-      "instantaneous_rps": 2720.6979776149406,
-      "p95_latency_ms": 0.5601000011665747,
-      "rss_bytes": 51097600,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:43:33Z",
-      "elapsed_seconds": 360.01556129999517,
-      "completed_ops": 869200,
-      "failed_ops": 0,
-      "instantaneous_rps": 2826.377278154231,
-      "p95_latency_ms": 0.50503999227658,
-      "rss_bytes": 51097600,
-      "python_allocated_bytes": null
-    },
-    {
-      "timestamp": "2026-11-22T12:44:03Z",
-      "elapsed_seconds": 390.0196814999945,
-      "completed_ops": 941800,
-      "failed_ops": 0,
-      "instantaneous_rps": 2419.6676828404948,
-      "p95_latency_ms": 0.687599997036159,
+      "instantaneous_rps": 2476.252633938566,
+      "p95_latency_ms": 0.6779100025596568,
       "rss_bytes": 50659328,
-      "python_allocated_bytes": null
+      "python_allocated_bytes": "NOT_COLLECTED"
     },
     {
-      "timestamp": "2026-11-22T12:44:33Z",
-      "elapsed_seconds": 420.01982750000025,
-      "completed_ops": 1012502,
+      "timestamp": "2026-11-22T13:18:14Z",
+      "elapsed_seconds": 120.01116290000209,
+      "completed_ops": 314747,
       "failed_ops": 0,
-      "instantaneous_rps": 2356.721863953142,
-      "p95_latency_ms": 0.767599995015189,
-      "rss_bytes": 50638848,
-      "python_allocated_bytes": null
+      "instantaneous_rps": 2611.5512149887973,
+      "p95_latency_ms": 0.6279999943217263,
+      "rss_bytes": 50982912,
+      "python_allocated_bytes": "NOT_COLLECTED"
     },
     {
-      "timestamp": "2026-11-22T12:45:03Z",
-      "elapsed_seconds": 450.0199008999916,
-      "completed_ops": 1075698,
+      "timestamp": "2026-11-22T13:18:44Z",
+      "elapsed_seconds": 150.01130230000126,
+      "completed_ops": 394845,
       "failed_ops": 0,
-      "instantaneous_rps": 2106.52817936166,
-      "p95_latency_ms": 0.9068500039575156,
-      "rss_bytes": 50647040,
-      "python_allocated_bytes": null
+      "instantaneous_rps": 2669.9209271008326,
+      "p95_latency_ms": 0.608200003625825,
+      "rss_bytes": 50991104,
+      "python_allocated_bytes": "NOT_COLLECTED"
     },
     {
-      "timestamp": "2026-11-22T12:45:33Z",
-      "elapsed_seconds": 480.02030370000284,
-      "completed_ops": 1142914,
+      "timestamp": "2026-11-22T13:19:14Z",
+      "elapsed_seconds": 180.01142840000102,
+      "completed_ops": 477126,
       "failed_ops": 0,
-      "instantaneous_rps": 2240.503250842181,
-      "p95_latency_ms": 0.8272249979199842,
-      "rss_bytes": 50487296,
-      "python_allocated_bytes": null
+      "instantaneous_rps": 2742.6884715661463,
+      "p95_latency_ms": 0.5612999957520515,
+      "rss_bytes": 51060736,
+      "python_allocated_bytes": "NOT_COLLECTED"
     },
     {
-      "timestamp": "2026-11-22T12:46:03Z",
-      "elapsed_seconds": 510.02837369999907,
-      "completed_ops": 1212000,
+      "timestamp": "2026-11-22T13:19:44Z",
+      "elapsed_seconds": 210.01154510000197,
+      "completed_ops": 562859,
       "failed_ops": 0,
-      "instantaneous_rps": 2302.2473621265444,
-      "p95_latency_ms": 0.7669749938941095,
-      "rss_bytes": 50659328,
-      "python_allocated_bytes": null
+      "instantaneous_rps": 2857.7555499974874,
+      "p95_latency_ms": 0.4806400072993705,
+      "rss_bytes": 50925568,
+      "python_allocated_bytes": "NOT_COLLECTED"
     },
     {
-      "timestamp": "2026-11-22T12:46:33Z",
-      "elapsed_seconds": 540.0431946000026,
-      "completed_ops": 1279500,
+      "timestamp": "2026-11-22T13:20:14Z",
+      "elapsed_seconds": 240.0116221000062,
+      "completed_ops": 657438,
       "failed_ops": 0,
-      "instantaneous_rps": 2248.8889813762653,
-      "p95_latency_ms": 0.7989100005943319,
-      "rss_bytes": 50536448,
-      "python_allocated_bytes": null
+      "instantaneous_rps": 3152.625241594768,
+      "p95_latency_ms": 0.4425099934451273,
+      "rss_bytes": 51298304,
+      "python_allocated_bytes": "NOT_COLLECTED"
     },
     {
-      "timestamp": "2026-11-22T12:47:03Z",
-      "elapsed_seconds": 570.0432618999912,
-      "completed_ops": 1348598,
+      "timestamp": "2026-11-22T13:20:44Z",
+      "elapsed_seconds": 270.0117639999953,
+      "completed_ops": 726000,
       "failed_ops": 0,
-      "instantaneous_rps": 2303.2614996842453,
-      "p95_latency_ms": 0.7466299954103295,
-      "rss_bytes": 50659328,
-      "python_allocated_bytes": null
+      "instantaneous_rps": 2285.389190109961,
+      "p95_latency_ms": 0.7670949918974653,
+      "rss_bytes": 50679808,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:21:14Z",
+      "elapsed_seconds": 300.0407589999959,
+      "completed_ops": 799700,
+      "failed_ops": 0,
+      "instantaneous_rps": 2454.2945909444716,
+      "p95_latency_ms": 0.6956049997825179,
+      "rss_bytes": 51355648,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:21:44Z",
+      "elapsed_seconds": 330.0413514999964,
+      "completed_ops": 848150,
+      "failed_ops": 0,
+      "instantaneous_rps": 1614.968104379912,
+      "p95_latency_ms": 1.0282000002916902,
+      "rss_bytes": 50720768,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:22:14Z",
+      "elapsed_seconds": 360.04142789999605,
+      "completed_ops": 923955,
+      "failed_ops": 0,
+      "instantaneous_rps": 2526.826898347527,
+      "p95_latency_ms": 0.6553799990797419,
+      "rss_bytes": 51109888,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:22:44Z",
+      "elapsed_seconds": 390.0414924999932,
+      "completed_ops": 1003937,
+      "failed_ops": 0,
+      "instantaneous_rps": 2666.0609257490614,
+      "p95_latency_ms": 0.6004950031638142,
+      "rss_bytes": 51441664,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:23:14Z",
+      "elapsed_seconds": 420.04171259999566,
+      "completed_ops": 1086254,
+      "failed_ops": 0,
+      "instantaneous_rps": 2743.8798690678004,
+      "p95_latency_ms": 0.5644400051096449,
+      "rss_bytes": 51437568,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:23:44Z",
+      "elapsed_seconds": 450.04655939999793,
+      "completed_ops": 1172400,
+      "failed_ops": 0,
+      "instantaneous_rps": 2871.0694833473867,
+      "p95_latency_ms": 0.49937500443775207,
+      "rss_bytes": 51032064,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:24:14Z",
+      "elapsed_seconds": 480.0580672999931,
+      "completed_ops": 1257800,
+      "failed_ops": 0,
+      "instantaneous_rps": 2845.5751135388196,
+      "p95_latency_ms": 0.5157049985427878,
+      "rss_bytes": 51302400,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:24:44Z",
+      "elapsed_seconds": 510.0717524000065,
+      "completed_ops": 1337100,
+      "failed_ops": 0,
+      "instantaneous_rps": 2642.128073768743,
+      "p95_latency_ms": 0.6286099989665678,
+      "rss_bytes": 51093504,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:25:14Z",
+      "elapsed_seconds": 540.0718412999995,
+      "completed_ops": 1417474,
+      "failed_ops": 0,
+      "instantaneous_rps": 2679.1253941923746,
+      "p95_latency_ms": 0.617635002708993,
+      "rss_bytes": 51159040,
+      "python_allocated_bytes": "NOT_COLLECTED"
+    },
+    {
+      "timestamp": "2026-11-22T13:25:44Z",
+      "elapsed_seconds": 570.0878118999972,
+      "completed_ops": 1493300,
+      "failed_ops": 0,
+      "instantaneous_rps": 2526.188508460422,
+      "p95_latency_ms": 0.6635999998252373,
+      "rss_bytes": 51302400,
+      "python_allocated_bytes": "NOT_COLLECTED"
     }
   ],
-  "passed_stability": true
+  "passed_stability": true,
+  "environment": {
+    "everyo_version": "0.5.0",
+    "git_commit_sha": "fbf11474309e4f16860beb3d6a2c3a0c74d7cbef",
+    "python_implementation": "CPython",
+    "python_version": "3.15.2",
+    "python_major_minor": "3.15",
+    "os_name": "Windows",
+    "os_release": "11",
+    "architecture": "AMD64",
+    "platform": "Windows 11 (AMD64)",
+    "processor": "Intel64 Family 6 Model 181 Stepping 0, GenuineIntel",
+    "cpu_count_logical": 14,
+    "numpy_version": "2.5.5",
+    "numpy_major": "2",
+    "blas_info": {
+      "Compilers": {
+        "c": {
+          "name": "msvc",
+          "linker": "link",
+          "version": "19.44.35230",
+          "commands": "cl"
+        },
+        "cython": {
+          "name": "cython",
+          "linker": "cython",
+          "version": "3.3.1",
+          "commands": "cython"
+        },
+        "c++": {
+          "name": "msvc",
+          "linker": "link",
+          "version": "19.44.35230",
+          "commands": "cl"
+        }
+      },
+      "Machine Information": {
+        "host": {
+          "cpu": "x86_64",
+          "family": "x86_64",
+          "endian": "little",
+          "system": "windows"
+        },
+        "build": {
+          "cpu": "x86_64",
+          "family": "x86_64",
+          "endian": "little",
+          "system": "windows"
+        }
+      },
+      "Build Dependencies": {
+        "blas": {
+          "name": "scipy-openblas",
+          "found": true,
+          "version": "0.3.34.237.2",
+          "detection method": "pkgconfig",
+          "include directory": "C:/Users/runneradmin/AppData/Local/Temp/cibw-run-u6uev8_h/cp315-win_amd64/build/venv/Lib/site-packages/scipy_openblas64/include",
+          "lib directory": "C:/Users/runneradmin/AppData/Local/Temp/cibw-run-u6uev8_h/cp315-win_amd64/build/venv/Lib/site-packages/scipy_openblas64/lib",
+          "openblas configuration": "OpenBLAS 0.3.34.237.2  USE64BITINT DYNAMIC_ARCH NO_AFFINITY SkylakeX MAX_THREADS=24",
+          "pc file directory": "D:/a/numpy-release/numpy-release/.openblas"
+        },
+        "lapack": {
+          "name": "scipy-openblas",
+          "found": true,
+          "version": "0.3.34.237.2",
+          "detection method": "pkgconfig",
+          "include directory": "C:/Users/runneradmin/AppData/Local/Temp/cibw-run-u6uev8_h/cp315-win_amd64/build/venv/Lib/site-packages/scipy_openblas64/include",
+          "lib directory": "C:/Users/runneradmin/AppData/Local/Temp/cibw-run-u6uev8_h/cp315-win_amd64/build/venv/Lib/site-packages/scipy_openblas64/lib",
+          "openblas configuration": "OpenBLAS 0.3.34.237.2  USE64BITINT DYNAMIC_ARCH NO_AFFINITY SkylakeX MAX_THREADS=24",
+          "pc file directory": "D:/a/numpy-release/numpy-release/.openblas"
+        }
+      },
+      "Python Information": {
+        "path": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\build-env-lvcfonnq\\Scripts\\python.exe",
+        "version": "3.15"
+      },
+      "SIMD Extensions": {
+        "baseline": [
+          "X86_V2"
+        ],
+        "found": [
+          "X86_V3"
+        ]
+      }
+    },
+    "thread_settings": {
+      "OMP_NUM_THREADS": null,
+      "MKL_NUM_THREADS": null,
+      "OPENBLAS_NUM_THREADS": null,
+      "VECLIB_MAXIMUM_THREADS": null,
+      "NUMEXPR_NUM_THREADS": null
+    },
+    "optional_backends": {
+      "cuda": false,
+      "tensorflow": false
+    },
+    "benchmark_suite_version": "21.3.1",
+    "process_pid": 25868,
+    "initial_rss_bytes": 51257344
+  }
 }

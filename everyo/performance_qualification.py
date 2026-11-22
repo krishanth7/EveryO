@@ -222,6 +222,7 @@ class MemoryTracker:
 
     def __init__(self, trace_python: bool = True) -> None:
         self.trace_python = trace_python
+        self._started_tracemalloc = False
         self.start_memory: dict[str, int | None] = {}
         self.end_memory: dict[str, int | None] = {}
         self.delta_rss_bytes: int = 0
@@ -231,6 +232,7 @@ class MemoryTracker:
         gc.collect()
         if self.trace_python and not tracemalloc.is_tracing():
             tracemalloc.start()
+            self._started_tracemalloc = True
         self.start_memory = get_process_memory()
         return self
 
@@ -244,6 +246,9 @@ class MemoryTracker:
         start_py = self.start_memory.get("python_allocated_bytes") or 0
         end_py = self.end_memory.get("python_allocated_bytes") or 0
         self.delta_python_bytes = end_py - start_py
+
+        if self._started_tracemalloc and tracemalloc.is_tracing():
+            tracemalloc.stop()
 
 
 def verify_resource_lifecycle(*, iterations: int = 15, tensor_size: int = 128) -> dict[str, Any]:
@@ -1426,8 +1431,135 @@ class SoakSample:
     failed_ops: int
     instantaneous_rps: float
     p95_latency_ms: float
-    rss_bytes: int | None
-    python_allocated_bytes: int | None
+    rss_bytes: int
+    python_allocated_bytes: int | str
+
+
+def validate_soak_report(report: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Validate that a soak telemetry report adheres to the Phase 21.3 schema."""
+    errors: list[str] = []
+    if not isinstance(report, dict):
+        return False, ["Report must be a dictionary"]
+
+    required_keys = [
+        "status",
+        "profile",
+        "git_commit_sha",
+        "everyo_version",
+        "python_version",
+        "python_implementation",
+        "os_name",
+        "os_version",
+        "architecture",
+        "processor",
+        "cpu_count_logical",
+        "numpy_version",
+        "backend_configuration",
+        "thread_settings",
+        "requested_duration_seconds",
+        "actual_duration_seconds",
+        "duration_seconds",
+        "start_time",
+        "end_time",
+        "initial_rss_bytes",
+        "final_rss_bytes",
+        "peak_rss_bytes",
+        "rss_growth_bytes",
+        "rss_growth_pct",
+        "rss_trend",
+        "memory_assessment",
+        "python_allocation_status",
+        "python_allocated_metrics",
+        "total_samples",
+        "completed_operations",
+        "failed_operations",
+        "overall_throughput_rps",
+        "latency_drift_pct",
+        "latency_statistics",
+        "samples",
+        "passed_stability",
+    ]
+
+    for key in required_keys:
+        if key not in report:
+            errors.append(f"Missing required key: '{key}'")
+
+    if report.get("status") not in ("PASS", "FAIL", "INTERRUPTED", "INVALID"):
+        errors.append(f"Invalid status: '{report.get('status')}'")
+
+    if not isinstance(report.get("samples"), list):
+        errors.append("Field 'samples' must be a list")
+    else:
+        for idx, s in enumerate(report["samples"]):
+            if not isinstance(s, dict):
+                errors.append(f"Sample at index {idx} must be a dictionary")
+                continue
+            for sample_key in (
+                "timestamp",
+                "elapsed_seconds",
+                "completed_ops",
+                "p95_latency_ms",
+                "rss_bytes",
+                "python_allocated_bytes",
+            ):
+                if sample_key not in s:
+                    errors.append(f"Sample at index {idx} missing key '{sample_key}'")
+            if s.get("python_allocated_bytes") is None:
+                errors.append(
+                    f"Sample at index {idx} has null python_allocated_bytes; must be int or 'NOT_COLLECTED'"
+                )
+
+    return len(errors) == 0, errors
+
+
+def _build_invalid_soak_report(
+    *,
+    profile: str,
+    requested_duration: float,
+    error: str,
+) -> dict[str, Any]:
+    env = get_environment_metadata()
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    return {
+        "status": "INVALID",
+        "profile": profile,
+        "validation_error": error,
+        "git_commit_sha": env.get("git_commit_sha", "unknown"),
+        "everyo_version": env.get("everyo_version", __version__),
+        "python_implementation": env.get("python_implementation", platform.python_implementation()),
+        "python_version": env.get("python_version", platform.python_version()),
+        "os_name": env.get("os_name", platform.system()),
+        "os_version": platform.version() or env.get("os_release", "unknown"),
+        "architecture": env.get("architecture", platform.machine()),
+        "processor": env.get("processor", "unknown"),
+        "cpu_count_logical": env.get("cpu_count_logical", 1),
+        "numpy_version": env.get("numpy_version", np.__version__),
+        "backend_configuration": env.get("optional_backends", {}),
+        "thread_settings": env.get("thread_settings", {}),
+        "requested_duration_seconds": requested_duration,
+        "actual_duration_seconds": 0.0,
+        "duration_seconds": 0.0,
+        "start_time": now_iso,
+        "end_time": now_iso,
+        "initial_rss_bytes": 0,
+        "final_rss_bytes": 0,
+        "peak_rss_bytes": 0,
+        "rss_growth_bytes": 0,
+        "rss_growth_pct": 0.0,
+        "rss_trend": "INVALID",
+        "memory_assessment": "INVALID_RUN",
+        "python_allocation_status": "NOT_COLLECTED",
+        "python_allocated_metrics": "NOT_COLLECTED",
+        "total_samples": 0,
+        "completed_operations": 0,
+        "failed_operations": 0,
+        "overall_throughput_rps": 0.0,
+        "latency_drift_pct": 0.0,
+        "latency_statistics": {},
+        "samples": [],
+        "passed_stability": False,
+        "environment": env,
+    }
 
 
 def run_soak_test(
@@ -1437,198 +1569,320 @@ def run_soak_test(
     concurrency: int = 2,
     batch_size: int = 32,
     profile: str | None = None,
+    trace_python: bool = False,
     progress_callback: Callable[[SoakSample], None] | None = None,
 ) -> dict[str, Any]:
     """Execute sustained representative CPU workload, monitoring memory and latency trends."""
-    if profile and profile in SOAK_PROFILES:
-        duration_seconds = SOAK_PROFILES[profile]
+    requested_duration = duration_seconds
+    if profile is not None:
+        if profile in SOAK_PROFILES:
+            duration_seconds = SOAK_PROFILES[profile]
+            requested_duration = duration_seconds
+        else:
+            return _build_invalid_soak_report(
+                profile=profile,
+                requested_duration=duration_seconds,
+                error=f"Unknown profile: '{profile}'. Must be one of {list(SOAK_PROFILES.keys())}",
+            )
 
-    if duration_seconds <= 0:
-        return {
-            "status": "INVALID",
-            "profile": profile or "invalid",
-            "start_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "end_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "duration_seconds": 0.0,
-            "completed_operations": 0,
-            "failed_operations": 0,
-            "overall_throughput_rps": 0.0,
-            "initial_rss_bytes": 0,
-            "final_rss_bytes": 0,
-            "rss_growth_pct": 0.0,
-            "latency_drift_pct": 0.0,
-            "total_samples": 0,
-            "samples": [],
-            "passed_stability": False,
+    if duration_seconds <= 0.0:
+        return _build_invalid_soak_report(
+            profile=profile or "custom",
+            requested_duration=duration_seconds,
+            error=f"duration_seconds must be positive, got {duration_seconds}",
+        )
+    if sample_interval_seconds <= 0.0:
+        return _build_invalid_soak_report(
+            profile=profile or "custom",
+            requested_duration=duration_seconds,
+            error=f"sample_interval_seconds must be positive, got {sample_interval_seconds}",
+        )
+    if batch_size <= 0:
+        return _build_invalid_soak_report(
+            profile=profile or "custom",
+            requested_duration=duration_seconds,
+            error=f"batch_size must be positive, got {batch_size}",
+        )
+    if concurrency <= 0:
+        return _build_invalid_soak_report(
+            profile=profile or "custom",
+            requested_duration=duration_seconds,
+            error=f"concurrency must be positive, got {concurrency}",
+        )
+
+    started_tracemalloc = False
+    if trace_python and not tracemalloc.is_tracing():
+        tracemalloc.start()
+        started_tracemalloc = True
+
+    try:
+        model = eo.Sequential(
+            eo.Linear(32, 16, seed=1),
+            eo.ReLU(),
+            eo.Linear(16, 4, seed=2),
+        )
+        runtime = CPUInferenceRuntime(model)
+
+        # Pre-serialized bytes for periodic deserialization verification
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_model_file = Path(tmpdir) / "soak_baseline.eo"
+            eo.save(model, tmp_model_file)
+            model_serialized_bytes = tmp_model_file.read_bytes()
+
+        start_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        start_time = time.perf_counter()
+        end_time = start_time + duration_seconds
+        next_sample_time = start_time + sample_interval_seconds
+
+        completed_ops = 0
+        failed_ops = 0
+        samples: list[SoakSample] = []
+        window_latencies: list[float] = []
+        all_window_p95s: list[float] = []
+        all_latencies_sample: list[float] = []
+        window_ops = 0
+        last_sample_t = start_time
+        interrupted = False
+
+        rng = np.random.default_rng(42)
+        inp_data = rng.standard_normal((batch_size, 32)).astype(np.float32)
+
+        # Initial sample
+        initial_mem = get_process_memory()
+        init_rss = int(initial_mem.get("rss_bytes") or 0)
+        init_py = initial_mem.get("python_allocated_bytes") if trace_python else None
+        init_py_val: int | str = int(init_py) if init_py is not None else "NOT_COLLECTED"
+
+        samples.append(
+            SoakSample(
+                timestamp=start_iso,
+                elapsed_seconds=0.0,
+                completed_ops=0,
+                failed_ops=0,
+                instantaneous_rps=0.0,
+                p95_latency_ms=0.0,
+                rss_bytes=init_rss,
+                python_allocated_bytes=init_py_val,
+            )
+        )
+
+        cycle = 0
+        try:
+            while time.perf_counter() < end_time:
+                cycle += 1
+                t_op = time.perf_counter()
+                try:
+                    # 1. Forward inference pass
+                    _ = runtime.predict_batched(inp_data)
+
+                    # 2. Tensor math operations
+                    t_arr = eo.tensor(inp_data)
+                    _ = eo.relu(t_arr + t_arr)
+
+                    # 3. Periodic model deserialization (every 50 cycles)
+                    if cycle % 50 == 0:
+                        loaded_m = eo.load(model_serialized_bytes)
+                        del loaded_m
+
+                    # 4. Periodic garbage collection (every 100 cycles)
+                    if cycle % 100 == 0:
+                        gc.collect()
+
+                    completed_ops += 1
+                    window_ops += 1
+                    lat_ms = (time.perf_counter() - t_op) * 1000.0
+                    window_latencies.append(lat_ms)
+                    if len(all_latencies_sample) < 10000:
+                        all_latencies_sample.append(lat_ms)
+                except Exception:
+                    failed_ops += 1
+
+                now = time.perf_counter()
+                if now >= next_sample_time:
+                    interval_dur = now - last_sample_t
+                    window_latencies.sort()
+                    p95 = calculate_percentile(window_latencies, 0.95) if window_latencies else 0.0
+                    all_window_p95s.append(p95)
+                    rps = window_ops / max(interval_dur, 1e-6)
+
+                    mem = get_process_memory()
+                    cur_rss = int(mem.get("rss_bytes") or 0)
+                    cur_py = mem.get("python_allocated_bytes") if trace_python else None
+                    cur_py_val: int | str = int(cur_py) if cur_py is not None else "NOT_COLLECTED"
+
+                    sample = SoakSample(
+                        timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        elapsed_seconds=now - start_time,
+                        completed_ops=completed_ops,
+                        failed_ops=failed_ops,
+                        instantaneous_rps=rps,
+                        p95_latency_ms=p95,
+                        rss_bytes=cur_rss,
+                        python_allocated_bytes=cur_py_val,
+                    )
+                    samples.append(sample)
+                    if progress_callback:
+                        progress_callback(sample)
+
+                    window_latencies = []
+                    window_ops = 0
+                    last_sample_t = now
+                    next_sample_time = now + sample_interval_seconds
+        except KeyboardInterrupt:
+            interrupted = True
+
+        total_elapsed = time.perf_counter() - start_time
+        end_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+        # Trend Analysis
+        first_half_samples = samples[1 : max(2, len(samples) // 2)]
+        second_half_samples = samples[max(2, len(samples) // 2) :]
+
+        final_rss = samples[-1].rss_bytes if samples else 0
+        peak_rss = max((s.rss_bytes for s in samples), default=final_rss)
+        rss_growth_bytes = final_rss - init_rss
+        rss_growth_pct = (rss_growth_bytes / max(init_rss, 1)) * 100.0 if init_rss > 0 else 0.0
+
+        if rss_growth_pct <= 5.0:
+            rss_trend = "STABLE"
+            memory_assessment = "NO_LEAK_DETECTED"
+        elif rss_growth_pct < 25.0:
+            rss_trend = "BOUNDED_GROWTH"
+            memory_assessment = "BOUNDED_ALLOCATOR_EXPANSION_NO_CONFIRMED_LEAK"
+        else:
+            rss_trend = "UNBOUNDED_GROWTH"
+            memory_assessment = "CONFIRMED_MEMORY_LEAK"
+
+        # Python allocation metrics
+        if trace_python or tracemalloc.is_tracing():
+            py_status = "COLLECTED"
+            py_first = (
+                samples[0].python_allocated_bytes
+                if isinstance(samples[0].python_allocated_bytes, int)
+                else 0
+            )
+            py_last = (
+                samples[-1].python_allocated_bytes
+                if isinstance(samples[-1].python_allocated_bytes, int)
+                else 0
+            )
+            py_peak = max(
+                (
+                    s.python_allocated_bytes
+                    for s in samples
+                    if isinstance(s.python_allocated_bytes, int)
+                ),
+                default=py_last,
+            )
+            py_metrics: Any = {
+                "initial_allocated_bytes": py_first,
+                "final_allocated_bytes": py_last,
+                "peak_allocated_bytes": py_peak,
+                "growth_bytes": py_last - py_first,
+            }
+        else:
+            py_status = "NOT_COLLECTED"
+            py_metrics = "NOT_COLLECTED"
+
+        # Latency statistics
+        p95_first = (
+            statistics.mean([s.p95_latency_ms for s in first_half_samples])
+            if first_half_samples
+            else 0.0
+        )
+        p95_second = (
+            statistics.mean([s.p95_latency_ms for s in second_half_samples])
+            if second_half_samples
+            else 0.0
+        )
+        latency_drift_pct = (
+            ((p95_second - p95_first) / max(p95_first, 1e-6)) * 100.0 if p95_first > 0 else 0.0
+        )
+
+        all_latencies_sample.sort()
+        all_window_p95s_sorted = sorted(all_window_p95s) if all_window_p95s else [0.0]
+        latency_stats = {
+            "mean_p95_ms": float(statistics.mean(all_window_p95s_sorted)),
+            "median_p95_ms": float(statistics.median(all_window_p95s_sorted)),
+            "min_p95_ms": float(min(all_window_p95s_sorted)),
+            "max_p95_ms": float(max(all_window_p95s_sorted)),
+            "p50_ms": calculate_percentile(all_latencies_sample, 0.50),
+            "p90_ms": calculate_percentile(all_latencies_sample, 0.90),
+            "p95_ms": calculate_percentile(all_latencies_sample, 0.95),
+            "p99_ms": calculate_percentile(all_latencies_sample, 0.99),
         }
 
-    model = eo.Sequential(
-        eo.Linear(32, 16, seed=1),
-        eo.ReLU(),
-        eo.Linear(16, 4, seed=2),
-    )
-    runtime = CPUInferenceRuntime(model)
+        failure_rate = failed_ops / max(completed_ops + failed_ops, 1)
 
-    # Pre-serialized bytes for periodic deserialization verification
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_model_file = Path(tmpdir) / "soak_baseline.eo"
-        eo.save(model, tmp_model_file)
-        model_serialized_bytes = tmp_model_file.read_bytes()
+        # Stability criteria: failure rate is 0, no unbounded memory growth (< 25%), and not interrupted
+        passed_stability = (failure_rate == 0.0) and (rss_growth_pct < 25.0) and not interrupted
 
-    start_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    start_time = time.perf_counter()
-    end_time = start_time + duration_seconds
-    next_sample_time = start_time + sample_interval_seconds
+        if interrupted:
+            status = "INTERRUPTED"
+            passed_stability = False
+        elif passed_stability:
+            status = "PASS"
+        else:
+            status = "FAIL"
 
-    completed_ops = 0
-    failed_ops = 0
-    samples: list[SoakSample] = []
-    window_latencies: list[float] = []
-    window_ops = 0
-    last_sample_t = start_time
-    interrupted = False
-
-    rng = np.random.default_rng(42)
-    inp_data = rng.standard_normal((batch_size, 32)).astype(np.float32)
-
-    # Initial sample
-    initial_mem = get_process_memory()
-    samples.append(
-        SoakSample(
-            timestamp=start_iso,
-            elapsed_seconds=0.0,
-            completed_ops=0,
-            failed_ops=0,
-            instantaneous_rps=0.0,
-            p95_latency_ms=0.0,
-            rss_bytes=initial_mem.get("rss_bytes"),
-            python_allocated_bytes=initial_mem.get("python_allocated_bytes"),
+        profile_label = profile or (
+            "short"
+            if abs(duration_seconds - 600.0) < 1.0
+            else "medium"
+            if abs(duration_seconds - 1800.0) < 1.0
+            else "extended"
+            if abs(duration_seconds - 7200.0) < 1.0
+            else "endurance"
+            if abs(duration_seconds - 28800.0) < 1.0
+            else "custom"
         )
-    )
 
-    cycle = 0
-    try:
-        while time.perf_counter() < end_time:
-            cycle += 1
-            t_op = time.perf_counter()
-            try:
-                # 1. Forward inference pass
-                _ = runtime.predict_batched(inp_data)
+        env = get_environment_metadata()
 
-                # 2. Tensor math operations
-                t_arr = eo.tensor(inp_data)
-                _ = eo.relu(t_arr + t_arr)
-
-                # 3. Periodic model deserialization (every 50 cycles)
-                if cycle % 50 == 0:
-                    loaded_m = eo.load(model_serialized_bytes)
-                    del loaded_m
-
-                # 4. Periodic garbage collection (every 100 cycles)
-                if cycle % 100 == 0:
-                    gc.collect()
-
-                completed_ops += 1
-                window_ops += 1
-                window_latencies.append((time.perf_counter() - t_op) * 1000.0)
-            except Exception:
-                failed_ops += 1
-
-            now = time.perf_counter()
-            if now >= next_sample_time:
-                interval_dur = now - last_sample_t
-                window_latencies.sort()
-                p95 = calculate_percentile(window_latencies, 0.95) if window_latencies else 0.0
-                rps = window_ops / max(interval_dur, 1e-6)
-
-                mem = get_process_memory()
-                sample = SoakSample(
-                    timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    elapsed_seconds=now - start_time,
-                    completed_ops=completed_ops,
-                    failed_ops=failed_ops,
-                    instantaneous_rps=rps,
-                    p95_latency_ms=p95,
-                    rss_bytes=mem.get("rss_bytes"),
-                    python_allocated_bytes=mem.get("python_allocated_bytes"),
-                )
-                samples.append(sample)
-                if progress_callback:
-                    progress_callback(sample)
-
-                window_latencies = []
-                window_ops = 0
-                last_sample_t = now
-                next_sample_time = now + sample_interval_seconds
-    except KeyboardInterrupt:
-        interrupted = True
-
-    total_elapsed = time.perf_counter() - start_time
-    end_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-    # Trend Analysis
-    first_half_samples = samples[1 : max(2, len(samples) // 2)]
-    second_half_samples = samples[max(2, len(samples) // 2) :]
-
-    init_rss = samples[0].rss_bytes or 0
-    final_rss = samples[-1].rss_bytes or 0
-    rss_growth_pct = ((final_rss - init_rss) / max(init_rss, 1)) * 100.0 if init_rss > 0 else 0.0
-
-    p95_first = (
-        statistics.mean([s.p95_latency_ms for s in first_half_samples])
-        if first_half_samples
-        else 0.0
-    )
-    p95_second = (
-        statistics.mean([s.p95_latency_ms for s in second_half_samples])
-        if second_half_samples
-        else 0.0
-    )
-    latency_drift_pct = (
-        ((p95_second - p95_first) / max(p95_first, 1e-6)) * 100.0 if p95_first > 0 else 0.0
-    )
-
-    failure_rate = failed_ops / max(completed_ops + failed_ops, 1)
-
-    # Stability criteria: failure rate is 0 and no unbounded memory growth (> 25%) and not interrupted
-    passed_stability = (failure_rate == 0.0) and (rss_growth_pct < 25.0) and not interrupted
-
-    if interrupted:
-        status = "INTERRUPTED"
-    elif passed_stability:
-        status = "PASS"
-    else:
-        status = "FAIL"
-
-    profile_label = profile or (
-        "short"
-        if abs(duration_seconds - 600.0) < 1.0
-        else "medium"
-        if abs(duration_seconds - 1800.0) < 1.0
-        else "extended"
-        if abs(duration_seconds - 7200.0) < 1.0
-        else "endurance"
-        if abs(duration_seconds - 28800.0) < 1.0
-        else "custom"
-    )
-
-    return {
-        "status": status,
-        "profile": profile_label,
-        "start_time": start_iso,
-        "end_time": end_iso,
-        "duration_seconds": total_elapsed,
-        "completed_operations": completed_ops,
-        "failed_operations": failed_ops,
-        "overall_throughput_rps": completed_ops / max(total_elapsed, 1e-6),
-        "initial_rss_bytes": init_rss,
-        "final_rss_bytes": final_rss,
-        "rss_growth_pct": rss_growth_pct,
-        "latency_drift_pct": latency_drift_pct,
-        "total_samples": len(samples),
-        "samples": [asdict(s) for s in samples],
-        "passed_stability": passed_stability,
-    }
+        return {
+            "status": status,
+            "profile": profile_label,
+            "git_commit_sha": env.get("git_commit_sha", "unknown"),
+            "everyo_version": env.get("everyo_version", __version__),
+            "python_implementation": env.get(
+                "python_implementation", platform.python_implementation()
+            ),
+            "python_version": env.get("python_version", platform.python_version()),
+            "os_name": env.get("os_name", platform.system()),
+            "os_version": platform.version() or env.get("os_release", "unknown"),
+            "architecture": env.get("architecture", platform.machine()),
+            "processor": env.get("processor", "unknown"),
+            "cpu_count_logical": env.get("cpu_count_logical", 1),
+            "numpy_version": env.get("numpy_version", np.__version__),
+            "backend_configuration": env.get("optional_backends", {}),
+            "thread_settings": env.get("thread_settings", {}),
+            "requested_duration_seconds": requested_duration,
+            "actual_duration_seconds": total_elapsed,
+            "duration_seconds": total_elapsed,
+            "start_time": start_iso,
+            "end_time": end_iso,
+            "initial_rss_bytes": init_rss,
+            "final_rss_bytes": final_rss,
+            "peak_rss_bytes": peak_rss,
+            "rss_growth_bytes": rss_growth_bytes,
+            "rss_growth_pct": rss_growth_pct,
+            "rss_trend": rss_trend,
+            "memory_assessment": memory_assessment,
+            "python_allocation_status": py_status,
+            "python_allocated_metrics": py_metrics,
+            "total_samples": len(samples),
+            "completed_operations": completed_ops,
+            "failed_operations": failed_ops,
+            "overall_throughput_rps": completed_ops / max(total_elapsed, 1e-6),
+            "latency_drift_pct": latency_drift_pct,
+            "latency_statistics": latency_stats,
+            "samples": [asdict(s) for s in samples],
+            "passed_stability": passed_stability,
+            "environment": env,
+        }
+    finally:
+        if started_tracemalloc and tracemalloc.is_tracing():
+            tracemalloc.stop()
 
 
 # ==============================================================================

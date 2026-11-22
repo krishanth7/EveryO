@@ -403,6 +403,18 @@ def parse_args(argv: Sequence[str] | None = None) -> Any:
         help="Path to reference baseline JSON for regression comparison.",
     )
     parser.add_argument(
+        "--failure-threshold",
+        type=float,
+        default=0.30,
+        help="Fractional performance regression threshold to trigger failure (default: 0.30).",
+    )
+    parser.add_argument(
+        "--noise-floor-ms",
+        type=float,
+        default=0.5,
+        help="Absolute latency delta noise floor in milliseconds (default: 0.5ms).",
+    )
+    parser.add_argument(
         "--output",
         "-o",
         type=str,
@@ -498,7 +510,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         base_path = Path(args.baseline)
         if base_path.is_file():
             base_data = json.loads(base_path.read_text(encoding="utf-8"))
-            comparison = evaluate_performance_regression(result_data, base_data)
+            comparison = evaluate_performance_regression(
+                result_data,
+                base_data,
+                failure_threshold=args.failure_threshold,
+                noise_floor_ms=args.noise_floor_ms,
+            )
             result_data["regression_comparison"] = comparison
             if comparison.get("failure_count", 0) > 0:
                 exit_code = 1

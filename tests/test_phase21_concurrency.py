@@ -147,3 +147,73 @@ class TestConcurrencyCorrectness:
             results = list(pool.map(_process_worker, [10, 20, 30, 40]))
         assert len(results) == 4
         assert all(isinstance(r, float) for r in results)
+
+    def test_worker_exception_propagation(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        def faulty_worker():
+            raise ValueError("Deliberate worker computational error")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            future = pool.submit(faulty_worker)
+            try:
+                future.result()
+                raised = False
+            except ValueError as e:
+                raised = True
+                assert "Deliberate worker computational error" in str(e)
+            assert raised is True
+
+    def test_thread_timeout_detection_not_marked_terminated(self):
+        import time
+
+        stop_event = threading.Event()
+
+        def hanging_worker():
+            while not stop_event.is_set():
+                time.sleep(0.01)
+
+        t = threading.Thread(target=hanging_worker)
+        t.start()
+        # Verify that join with timeout detects active non-terminated thread
+        t.join(timeout=0.05)
+        is_still_alive = t.is_alive()
+        # Cleanly signal worker to terminate
+        stop_event.set()
+        t.join(timeout=2.0)
+
+        assert is_still_alive is True, "Timed-out thread must not be treated as terminated"
+        assert t.is_alive() is False, "Worker must terminate cleanly after event set"
+
+    def test_resource_cleanup_after_concurrency_failure(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model = eo.Sequential(eo.Linear(4, 2, seed=1))
+            save_path = Path(tmpdir) / "concurrent_fail.eo"
+            eo.save(model, save_path)
+
+            corrupted_path = Path(tmpdir) / "corrupt.eo"
+            corrupted_path.write_bytes(b"INVALID_ZIP")
+
+            barrier = threading.Barrier(3)
+            results = []
+
+            def worker(path_to_load, expect_error):
+                barrier.wait()
+                try:
+                    loaded = eo.load(path_to_load)
+                    results.append(("success", loaded is not None))
+                except Exception as exc:
+                    results.append(("error", type(exc).__name__))
+
+            t1 = threading.Thread(target=worker, args=(corrupted_path, True))
+            t2 = threading.Thread(target=worker, args=(save_path, False))
+            t3 = threading.Thread(target=worker, args=(save_path, False))
+
+            for t in (t1, t2, t3):
+                t.start()
+            for t in (t1, t2, t3):
+                t.join(timeout=5.0)
+
+            statuses = {r[0] for r in results}
+            assert "error" in statuses
+            assert "success" in statuses
