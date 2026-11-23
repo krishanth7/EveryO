@@ -49,7 +49,7 @@ dev = [
     "pytest-cov>=4.0",
     # Pinned exactly: formatter output changes between ruff releases, so an
     # unpinned range makes `ruff format --check` pass locally and fail in CI.
-    "ruff==0.17.5",
+    "ruff==0.17.6",
     "PyYAML>=6.0",
     "pip-audit>=2.7.0",
     'tomli>=2.0; python_version < "3.11"',

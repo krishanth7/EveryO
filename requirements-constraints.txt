@@ -3,7 +3,7 @@ numpy>=1.22,<3.0.0
 matplotlib>=3.5,<4.0.0
 pytest>=7.0,<10.0
 pytest-cov>=4.0,<8.0
-ruff==0.17.5
+ruff==0.17.6
 PyYAML>=6.0,<7.0
 pip-audit>=2.7.0,<3.0.0
 cryptography>=42.0.0,<51.0.0
