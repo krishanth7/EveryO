@@ -6,7 +6,7 @@ pytest>=7.0
 pytest-cov>=4.0
 ruff==0.17.6  # pinned: formatter output is version-sensitive
 PyYAML>=6.0
-tomli>=2.0; python_version < "3.11"
+tomli>=2.5.0; python_version < "3.11"
 
 # Optional backends. Neither is required to run the core test suite.
 # tensorflow>=2.12
